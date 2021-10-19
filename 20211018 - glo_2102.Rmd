@@ -1,0 +1,294 @@
+---
+title: "glo_2102"
+author: "Filip Andras"
+date: "10/18/2021"
+output:
+  pdf_document: default
+  html_document: default
+---   
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Two groups of children, Grade 1 and Grade 6, completed simple sums with operands from 0 to 9. The aim is to see the evolution of problem size effect in tie vs. non-tie problems in this cross sectional design.
+
+Predictions should be similar to Bagnoud et al. (2021).
+
+VI: group (Grade 1 vs. Grade 6)
+  - Grade 1: 31 kids (32 evaluated, number 6 eliminated because he did not finish the task); 28 edat2 file missing
+  - Grade 6: 28 kids (29 evaluated, number 14 eliminated due to technical issues)
+  
+VD: problem size in tie and non-tie problems
+
+We can divide the sums as follows:
+
+Bagnoud et al. (2021)
+rule-based problems:
+  - 0-problems (m+0/0+n) #esto lo tenemos extra, en Bagnoud et al. (2021) no consideraron ese tipo de problemas
+  - 1-problems (n+1/1+n)
+tie problems  
+  - small tie problems (2+2, 3+3, 4+4)
+  - large tie problems (5+5, 6+6, 7+7, 8+8, 9+9)
+non-tie problems  
+  - small problems: operands <= 4 (2+2, 2+4, 3+4, 3+2, 4+2, 4+3) 
+  - medium problems: at least one operand > 4 and sum <= 10 (2+5, 2+6, 2+7, 2+8, 3+5, 3+6, 3+7, 4+5, 4+6, 5+2, 5+3, 5+4, 6+2, 6+3, 6+4, 7+2, 7+3, 8+2)
+  - large problems: sum > 10
+  
+Uittenhove et al. (2016)  
+  - small problems
+  - large problems
+
+Control variables: 
+- WM (direct and indirect)
+- Raven matrices
+
+Posibles comparaciones:
+  - 1. tie vs. non-tie problems (grouped)
+  - 1.1 tie vs. non-tie problems base on problem size (2+2 vs. 3+1; 4+4 = 8 vs. 5+3 = 8, 5+5 vs 7+3, 6+6 vs. 7+5; 7+7 vs. 8+6; 8+8 vs. 9+7, 9+9 vs. ?)
+  - 2. see the problem size within each tie and non-tie group
+    - en Bagnoud no comparan el size effect entre éstos, sólo se basan en las gráficas, se podría mirar con Generalized Additive Models?
+
+
+No puden ser los tie resolved more quickly because they are also practiced in multiplications? 2x2, 2x3, 2x4, 2x5, 2x6, 2x7, 2x8, 2x9? Ha considerado alguien esto?
+
+
+Title: Developmental changes in size effect for simple addition problems in first graders and sixth graders
+
+*Abstract*
+
+
+For the first time/We replicated recent findings
+
+The size effect
+
+*Introduction*
+
+- retrieval
+- procedures (Thevenot, Uittenhove)
+
+
+
+*Method*
+
+In total, 61 children form Grade 1 and Grade 6 were involved in this study. The data of one first grader were discarded because he did not complete the task, and the data of one sixth grader were discarded becaus of technical issues. Thereforem the cross-sectional analysis involved 31 first graders (12 female; mean age = 6.19 years, SD = 0.40 years ) and 28 sixth graders (15 female; mean age = 11.52 years, SD = 0.63 years).
+
+We tested the children (?) in a Spanish public (?) school.
+
+The study was approved by the ethics commitee of the University of Granada (CEIH: ) and parental consent was obtained before starting the experiment.
+
+- corrected vision? native language?
+
+*Material and procedure*
+
+  Children were tested individually in a single session during which they completed an arithmetic task solving simple additions, and two control tasks. The control tasks were the direct and inverse digit span (citation) to control for working memory capacity, and Raven matrices (citation) to control for fluid intelligence.
+  The arithmetic task involved operands from 0 to 9. This task was designed in and presented by the E-Prime software (citation).
+  
+  
+*Data Analysis*
+
+
+*Results*
+
+
+*Discussion*
+
+- small summary
+
+- finding 1
+
+- finding 2
+
+- finding 3
+
+- finding 4
+
+Load packages
+```{r}
+library(tidyverse)
+# library()
+# library()
+
+sessionInfo()
+```
+
+Load data
+```{r}
+# setwd("/Users/Filip/Desktop/PhD 2020/__20210227 - paper Gloria niños/glo_2102/glo_2102")
+
+nam.p <- read_csv2("primaria naming.csv", skip = 1) #naming primaria
+nam.s <- read_csv2("sexto naming.csv", skip = 1) #naming sexto
+d.p <- read_csv2("primaria sumas.csv", skip = 1) #data primaria
+d.s <- read_csv2("sexto sumas.csv", skip = 1) #data sexto
+```
+
+
+Pre-processing
+
+Primaria
+```{r}
+d.p <- read_csv2("primaria sumas.csv", skip = 1) #data primaria
+
+d.p <- d.p %>% 
+  filter(Bloques != is.na(TRUE)) %>% 
+  dplyr::select(subject = Subject,
+                #age = Edad,
+                group = Group,
+                #handedness = PreferenciaManual,
+                #sex = Sexo,
+                #block = ListBloques,
+                #subtrial = SubTrial, #n de trial dentro de cada bloque
+                item = "code[SubTrial]",
+                #trial = Listensayos.Sample,
+                op.1 = "ope1[SubTrial]",
+                op.2 = "ope2[SubTrial]",
+                sum = resultados,
+                ACC = "suma.ACC[SubTrial]",
+                RT = "suma.RT[SubTrial]"
+                ) %>% 
+  arrange(subject) %>% 
+  mutate(row_id = 1:n(),
+         exp = "primaria",
+         tie = if_else(op.1 == op.2 & op.1 != 1 & op.1 != 0, 1, 0),
+         tie_small = if_else(tie == 1 & sum <= 8, 1, 0),
+         tie_large = if_else(tie == 1 & sum > 8, 1, 0),
+         sum_n0 = if_else(op.1 == 0 | op.2 == 0, 1,0),
+         sum_n1 = if_else(sum_n0 != 1 & op.1 == 1 | sum_n0 != 1 & op.2 == 1, 1, 0), # sums 1 + 0 also classified as n_1
+         sum_small = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & op.1 <= 4 & op.2 <= 4, 1, 0),
+         sum_medium = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum <= 10, 1, 0),
+         sum_large = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum_medium != 1, 1 , 0)
+         ) %>% 
+  relocate(exp, .before = subject) %>% 
+  relocate(row_id, .before = exp)
+
+# check:
+# num_items *3 (blocks) *30 (participants)
+
+# sum(d.p$tie) #720
+# 8*3*30
+# sum(d.p$tie_small) #270
+# 3*3*30
+# sum(d.p$tie_large) #450
+# 5*3*30
+# sum(d.p$sum_n0) #1710
+# 19*3*30
+# sum(d.p$sum_n1) #1530
+# 17*3*30
+# sum(d.p$sum_small) #540
+# 6*3*30
+# sum(d.p$sum_medium) #1620
+# 18*3*30
+# sum(d.p$sum_large) #2880
+# 32*3*30
+
+#9000 obs = 30 subjects, need to add 28 and erroneous trials
+
+d.p$subject <- as.factor(d.p$subject)
+levels(d.p$subject)
+```
+Sexto
+```{r}
+d.s <- read_csv2("sexto sumas.csv", skip = 1) #data sexto
+
+# colnames(d.s)
+
+d.s <- d.s %>% 
+  filter(Bloques != is.na(TRUE)) %>% 
+  dplyr::select(subject = Subject,
+                #age = Edad,
+                group = Group,
+                #handedness = PreferenciaManual,
+                #sex = Sexo,
+                #block = ListBloques,
+                #subtrial = SubTrial, #n de trial dentro de cada bloque
+                item = "code[SubTrial]",
+                #trial = Listensayos.Sample,
+                op.1 = "ope1[SubTrial]",
+                op.2 = "ope2[SubTrial]",
+                sum = resultados,
+                ACC = "suma.ACC[SubTrial]",
+                RT = "suma.RT[SubTrial]"
+                ) %>% 
+  arrange(subject) %>% 
+  mutate(row_id = 1:n(),
+         exp = "primaria",
+         tie = if_else(op.1 == op.2 & op.1 != 1 & op.1 != 0, 1, 0),
+         tie_small = if_else(tie == 1 & sum <= 8, 1, 0),
+         tie_large = if_else(tie == 1 & sum > 8, 1, 0),
+         sum_n0 = if_else(op.1 == 0 | op.2 == 0, 1,0),
+         sum_n1 = if_else(sum_n0 != 1 & op.1 == 1 | sum_n0 != 1 & op.2 == 1, 1, 0), # sums 1 + 0 also classified as n_1
+         sum_small = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & op.1 <= 4 & op.2 <= 4, 1, 0),
+         sum_medium = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum <= 10, 1, 0),
+         sum_large = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum_medium != 1, 1 , 0)
+         ) %>% 
+  relocate(exp, .before = subject) %>% 
+  relocate(row_id, .before = exp)
+
+d.s$subject <- as.factor(d.s$subject)
+levels(d.s$subject)
+```
+
+
+
+Errors eliminated
+```{r}
+
+```
+
+Accuracy summary
+```{r}
+
+```
+
+
+
+
+<!-- Accuracy analysis: a lo mejor ni siquiera hay que hacerlo? Igual que Bagnoud et al.? -->
+<!-- ```{r} -->
+
+<!-- ``` -->
+
+Visualize RTs
+```{r}
+
+
+
+```
+
+
+Eliminate outliers
+
+filtrar 1: como Uittenhove et al. (2016)
+- filtrar por encima y por debajo de las 3 desviaciones típicas de la media
+- o mediana? - mejor para niños?
+
+```{r}
+
+```
+
+Corregir los tiempos de reacción por el naming (igual que Uittenhove et al., 2016)
+p. 293
+
+"Average individual RTs were subsequently cor- rected according to sensitivity of the voice key by subtracting to these RTs the deviation to the mean of the naming time corre- sponding to the answer."
+```{r}
+
+```
+
+Covariables
+- load WM scores (direct and inverse) + Raven scores
+```{r}
+
+```
+
+
+
+
+Para comparar los datos:
+filtrar 2: como Bagnoud et al. (2021)
+- coger la mediana directamente
+```{r}
+
+```
+
+
+
