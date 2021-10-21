@@ -1,6 +1,8 @@
 ---
 title: "glo_2102"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 Two groups of children, Grade 1 and Grade 6, completed simple sums with operands from 0 to 9. The aim is to see the evolution of problem size effect in tie vs. non-tie problems in this cross sectional design.
@@ -10,7 +12,11 @@ Predictions should be similar to Bagnoud et al. (2021).
 ***Variables:***
 
 **VI**: group (Grade 1 vs. Grade 6)
-  - Grade 1: 31 kids (32 evaluated, number 6 eliminated because he did not finish the task); 28 edat2 file missing
+  - Grade 1: 31 kids (32 evaluated, number 6 eliminated because he did not finish the task); 
+  
+  28 edat2 file missing: eliminado tamibén?
+  
+  
   - Grade 6: 28 kids (29 evaluated, number 14 eliminated due to technical issues)
   
 **VD**: problem size in tie and non-tie problems
@@ -101,8 +107,9 @@ Children were tested individually in a single session during which they complete
 Load packages
 ```{r}
 library(tidyverse)
-# library()
-# library()
+library(knitr)
+library(kableExtra)
+library(lme4)
 
 sessionInfo()
 ```
@@ -115,6 +122,10 @@ nam.p <- read_csv2("primaria naming.csv", skip = 1) #naming primaria
 nam.s <- read_csv2("sexto naming.csv", skip = 1) #naming sexto
 d.p <- read_csv2("primaria sumas.csv", skip = 1) #data primaria
 d.s <- read_csv2("sexto sumas.csv", skip = 1) #data sexto
+
+err_primero <- read_csv2("primaria_err_row_id.csv")
+err_sexto <- read_csv2("sexto_err_row_id.csv")
+
 ```
 
 
@@ -122,6 +133,7 @@ Pre-processing
 
 Primaria
 ```{r}
+d.p <- read_csv2("primaria sumas.csv", skip = 1) #data primaria
 #colnames(d.p)
 
 d.p <- d.p %>% 
@@ -147,14 +159,31 @@ d.p <- d.p %>%
          tie = if_else(op.1 == op.2 & op.1 != 1 & op.1 != 0, 1, 0),
          tie_small = if_else(tie == 1 & sum <= 8, 1, 0),
          tie_large = if_else(tie == 1 & sum > 8, 1, 0),
+         tie_degree = case_when(tie_small == 1 ~ 1,
+                                tie_large == 1 ~ 2,
+                                tie_small != 1 ~ 0,
+                                tie_large != 1 ~ 0,
+                                TRUE ~ 0),
          sum_n0 = if_else(op.1 == 0 | op.2 == 0, 1,0),
          sum_n1 = if_else(sum_n0 != 1 & op.1 == 1 | sum_n0 != 1 & op.2 == 1, 1, 0), # sums 1 + 0 also classified as n_1
          sum_small = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & op.1 <= 4 & op.2 <= 4, 1, 0),
          sum_medium = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum <= 10, 1, 0),
-         sum_large = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum_medium != 1, 1 , 0)
+         sum_large = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum_medium != 1, 1 , 0),
+         sum_degree = case_when(sum_small == 1 ~ 1,
+                                sum_medium == 1 ~ 2,
+                                sum_large == 1 ~ 3,
+                                TRUE ~ 0)
          ) %>% 
   relocate(exp, .before = subject) %>% 
   relocate(row_id, .before = exp)
+
+err_primero <- read_csv2("primaria_err_row_id.csv")
+
+d.p$ACC <- err_primero$ACC
+#sum(d.p$ACC) #651 erores
+
+d.p$subject <- as.factor(d.p$subject)
+#levels(d.p$subject) #6, 28 eliminated
 
 # check:
 # num_items *3 (blocks) *30 (participants)
@@ -176,13 +205,16 @@ d.p <- d.p %>%
 # sum(d.p$sum_large) #2880
 # 32*3*30
 
-#9000 obs = 30 subjects, need to add 28 and erroneous trials
+#9000 obs = 30 subjects, need to add 28
 
-d.p$subject <- as.factor(d.p$subject)
-#levels(d.p$subject)
+
+#TO-DO: recodificar participantes
 ```
 Sexto
 ```{r}
+d.s <- read_csv2("sexto sumas.csv", skip = 1) #data sexto
+
+
 d.s <- d.s %>% 
   filter(Bloques != is.na(TRUE)) %>% 
   dplyr::select(subject = Subject,
@@ -206,32 +238,128 @@ d.s <- d.s %>%
          tie = if_else(op.1 == op.2 & op.1 != 1 & op.1 != 0, 1, 0),
          tie_small = if_else(tie == 1 & sum <= 8, 1, 0),
          tie_large = if_else(tie == 1 & sum > 8, 1, 0),
+         tie_degree = case_when(tie_small == 1 ~ 1,
+                                tie_large == 1 ~ 2,
+                                tie_small != 1 ~ 0,
+                                tie_large != 1 ~ 0,
+                                TRUE ~ 0),
          sum_n0 = if_else(op.1 == 0 | op.2 == 0, 1,0),
          sum_n1 = if_else(sum_n0 != 1 & op.1 == 1 | sum_n0 != 1 & op.2 == 1, 1, 0), # sums 1 + 0 also classified as n_1
          sum_small = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & op.1 <= 4 & op.2 <= 4, 1, 0),
          sum_medium = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum <= 10, 1, 0),
-         sum_large = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum_medium != 1, 1 , 0)
+         sum_large = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum_medium != 1, 1 , 0),
+         sum_degree = case_when(sum_small == 1 ~ 1,
+                       sum_medium == 1 ~ 2,
+                       sum_large == 1 ~ 3,
+                       TRUE ~ 0)
          ) %>% 
   relocate(exp, .before = subject) %>% 
   relocate(row_id, .before = exp)
 
+err_sexto <- read_csv2("sexto_err_row_id.csv")
+
+d.s$ACC <- err_sexto$ACC
+#sum(d.s$ACC) #251 errors
+
 d.s$subject <- as.factor(d.s$subject)
-#levels(d.s$subject)
+#levels(d.s$subject) #14 eliminated
+
+#TO-DO: recodificar participantes
+#something like "seq_along(participant) for i in participant <- 36+i
 ```
-Add errors
+Merge the dfs together
+```{r}
+d <- rbind(d.p,
+           d.s)
+
+rm(d.p,
+   d.s,
+   err_primero,
+   err_sexto)
+```
+
+
+Re-definining variable types and specifying contrasts
 ```{r}
 
-```
+#tie vs. non-tie sum-to-zero contrast
+d$tie <- as.factor(d$tie)
+levels(d$tie)
+(levels(d$tie) <- c("non-tie", "tie"))
+contrasts(d$tie) <- contr.sum(2)
+
+#grade 1 vs. grade 6 sum-to-zero-contrast
+d$group <- as.factor(d$group)
+levels(d$group) <- c("grade 1", "grade 6")
+contrasts(d$group) <- contr.sum(2)
 
 
-Errors eliminated
-```{r}
+#TO-DO:
+
+#Quitar el extra primero para especificar a los contrastes??
+
+
+#sum_degree sequential differences contrast
+d$sum_degree <- as.factor(d$sum_degree)
+levels(d$sum_degree)
+(levels(d$sum_degree) <- c("extra", "small", "medium", "large"))
+
+#tie_degree sum-to-zero contrast
+d$tie_degree <- as.factor(d$tie_degree)
+levels(d$tie_degree)
+(levels(d$tie_degree) <- c("extra", "small", "large"))
+
+
+
+
+
+
 
 ```
 
 Accuracy summary
-```{r}
+```{r, results = "asis"}
+#errors per group
+t.1.1 <- d %>%
+  group_by(group) %>% 
+  summarize(accuracy = (1-mean(ACC))*100) %>% 
+  print() %>% 
+  knitr::kable(caption = "Table 1. Overall accuracy for each group", digits = 2) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
 
+#tie vs. non-tie per group
+t.1.2 <- d %>%
+  group_by(group, tie) %>% 
+  summarize(accuracy = (1-mean(ACC))*100) %>% 
+  print()
+
+#sum n+0
+t.2.1 <- d %>%
+  filter(sum_n1 == 1) %>% 
+  group_by(group) %>% 
+  summarize(accuracy = (1-mean(ACC))*100) %>% 
+  print()
+
+#sum n+1
+t.2.2 <- d %>%
+  filter(sum_n0 == 1) %>% 
+  group_by(group) %>% 
+  summarize(accuracy = (1-mean(ACC))*100) %>% 
+  print()
+
+#small, medium and large sums per group
+t.2.3 <- d %>% 
+  filter(sum_degree != "extra") %>% 
+  group_by(group, sum_degree) %>% 
+  summarize(accuracy = (1-mean(ACC))*100) %>% 
+  print()
+
+#small tie vs. large tie per group
+t.2.4 <- d %>% 
+  filter(tie_degree != "extra") %>% 
+  group_by(group, tie_degree) %>% 
+  summarize(accuracy = (1-mean(ACC))*100) %>% 
+  print()
 ```
 
 
@@ -242,6 +370,240 @@ Accuracy summary
 
 <!-- ``` -->
 
+Tie vs. non-tie problems (ANOVAs)
+- problem type(tie vs. non-tie) + group(grade 1 vs. grade 6) + problem type:group
+"For Grade 1 children, we conducted an ANOVA with age group (beginning or end) as a between-factor variable and problem type (tie or non-tie) as a within-factor variable."
+ 
+
+Non-tie problems (regressions)
+- small and medium non-tie problems (large problems excluded because not solved by first graders): RT ~ op.1 + op.2 | op.1*op.2 | (op.1 + op.2)^2 | op.1 | op.2 | op.max | op.min | op.1^2 + op.2^2 
+- groups collapsed
+- groups separated:
+"When we considered each age group separately, the sum of the problem was still the best significant predictor for each group"
+- ...and describing the slopes
+
+
+"Even though the sum of the problem significantly predicted solution times for each age group, a close look at solution time distributions according to the problem sum showed that, already from Grade 1, solution times did not linearly increase with the sum of the problems"
+- include square and cubic term
+
+Small non-tie problems
+- sum for each age group
+- ?no interactions evaluated?
+
+Medium non-tie problems
+- group*sum(8 vs. 9 vs. 10)
+- ?why not 7
+- group*sum_7(sum_small_7 vs. sum_medium_7)
+- ?why do they do it?
+
+
+My take on it:
+```{r}
+library(lme4)
+
+#without higher-order polynomials, check if the RE structure is ok and whether it converges
+
+m1.rt <- lme(RT ~ group + tie + sum +                                           #main effects
+                  group:tie +                                                   #first order interaction
+                  group:sum +                                                   #first order interactions
+                  tie:sum +                                                     #first order interactions
+                  group:tie:sum +                                               #second order interactions, critical comparison
+               (1 + sum|subject) +
+               (1 + tie|subject) +
+               (1 + sum:tie|subject) +
+               (1|item)
+               )      
+
+#(1 + sum|subject):
+
+   # 1|subject                   by-participant varying intercepts
+   # sum|subject                 by-participant varying sum slopes
+   # 1:sum|subject               correlation of varying intercepts and varying sum slopes
+
+# (1 + tie|subject) +
+
+   # 1|subject                   by-participant varying intercepts
+   # tie|subject                 by-participant varying tie slopes
+   # 1:tie|subject               correlation of varying intercepts and varying tie slopes
+
+# (1 + sum:tie|subject) +
+
+   # 1|subject                   by-participant varying intercepts
+   # sum:tie|subject             by participant varying sum:tie interaction slopes
+   # 1:sum:tie|subject           correlation of varying intercepts and varying sum:tie interaction slopes # the interaction of tie vs. non-tie problems and problem size can depend on the intercept
+
+#could I rewrite it like this?
+(1|subject)
+(0 + sum|subject)
+(0 + 1:sum|subject)
+(0 + tie|subject)
+(0 + 1:tie|subject)
+(0 + sum:tie|subject)
+(0 + 1:sum:tie|subject)
+```
+
+
+Prune the random effect structure
+```{r}
+
+```
+
+
+```{r}
+Testing higher order polynomials
+
+#Add the square term
+
+m2.rt <- lme(RT ~ group + tie + sum + sum_sq +                                  #main effects
+                  group:tie +                                                   #first order interaction
+                  group:sum + group:sum_sq +                                    #first order interactions
+                  tie:sum + tie:sum_sq +                                        #first order interactions
+                  group:tie:sum + group:tie:sum_sq +                            #second order interactions
+               (1 + sum|subject/group) + 
+               (1 + tie|subject) + 
+               (0 + sum:tie|subject)
+               )      
+
+#Add the cubic term
+
+m3.rt <- lme(RT ~ group + tie + sum + sum_sq + sum_cub +                        #main effects
+                  group:tie +                                                   #first order interaction
+                  group:sum + group:sum_sq + group:sum_cub +                    #first order interactions
+                  tie:sum + tie:sum_sq + tie:sum_cub +                          #first order interactions
+                  group:tie:sum + group:tie:sum_sq + group:tie:sum_cub +        #second order interactions
+               (1 + sum|subject/group) + 
+               (1 + tie|subject) + 
+               (0 + sum:tie|subject) 
+               )     
+
+#random effect structure:
+#per participant: sum, sum_sq, sum_cub, tie:sum, tie:s
+
+#data: without sum_n0 and sum_n1
+```
+
+
+```{r}
+mean(d$sum)
+#9
+mean(scale(d$sum))
+sd(scale(d$sum))
+plot(d$sum)
+plot(scale(d$sum))
+
+library(rethinking)
+library(splines)
+
+d.2 <- d %>% filter(sum_n0 == 0 & sum_n1 == 0)
+d.2.1 <- d %>% filter(sum_n0 == 1 | sum_n1 == 1)
+
+dens(d.2$sum)
+dens(d.2.1$sum)
+```
+
+
+Contrast coding
+```{r}
+
+```
+
+
+
+
+
+
+```{r}
+m1.acc <- glmer(ACC ~ group + tie + sum + group:tie +  +
+                  (1|subject) + (1 + scale(op.1) + scale(op.2) + scale(sum)|item), #no tiene sentido ponerlo en RE si no es fixed effect?
+                data = d, family = "binomial")
+
+#did not converge
+
+m2.acc <- glmer(ACC ~ tie + group + tie:group +
+                  (1 + tie|subject) + (1|item), 
+                data = d, family = "binomial")
+
+summary(m2.acc)
+
+
+#same as Bagnoud et al. (2021)
+
+#data: only non-tie problems
+
+
+#non-tie problems
+
+#together
+
+#by age group
+
+
+#small non-tie problems for each age group
+m3.acc <- glmer(ACC ~ sum + group + sum_degree:group + 
+                  (1 + sum_degree|subject) + (1|item))
+
+#medium non-tie problems for each age group
+m3.acc <- glmer(ACC ~ sum + group + sum_degree:group + 
+                  (1 + sum_degree|subject) + (1|item))
+
+#large non-tie problems for each age group
+m3.acc <- glmer(ACC ~ sum + group + sum_degree:group + 
+                  (1 + sum_degree|subject) + (1|item))
+
+
+#to mi přijde jako píčovina, proč raději netestovat size effect + include cuadratic term (or even cubic term) o excluir 10 y solo cuadratic term
+# je to třeba testovat pomocí GAMM
+
+
+
+#compare small, medium, large problems
+m3.acc <- glmer(ACC ~ sum_degree + group + sum_degree:group + 
+                  (1 + sum_degree|subject) + (1|item))
+
+#test the size effect within non-tie problems
+m3.1.acc <- glmer(ACC ~ sum + group + sum:group + 
+                  (1 + sum_degree|subject) + (1|item))
+
+
+#data: only tie problems
+
+#compare small tie problems and large tie problems
+m4.acc <- glmer(ACC ~ tie_degree + group + tie_degree:group +
+                  (1 + tie_degree|subject) + (1|item))
+
+#test the size effect within tie problems
+m4.1.acc <- glmer(ACC ~ sum + group + sum:group + 
+                  (1 + sum|subject) + (1|item))
+
+
+
+
+#compare the sum of the problem
+#TO-DO: code "sum" with sequential difference contrast
+
+#Main effects
+#sum: - if there is an overall problem size effect
+#tie: - if tie problems are resolved faster than non-tie problems
+#group: - if there are overall group differences
+
+
+#sum:group - if the problem size effect is different between groups NO NOS INTERESA
+
+#tie:group - if tie and non-tie problems are resolved differently between groups
+#sum:tie - 
+
+#sum:tie:group - if the difference between the problem size effect in ties and non-ties differs between groups
+
+#sum:tie - if ties are resolved faster
+#sum:tie:group - if ties and non ties are resolved differently by the two groups
+
+m5.acc.glmer(ACC ~ tie + sum + group + sum:group + sum:tie + sum:group:tie)
+
+#data: tendría que limitarme a 4, 6, 8, 10, 12, 14, 16, 18
+#sin n+0 a n+1
+```
+
+
 Visualize RTs
 ```{r}
 
@@ -249,16 +611,27 @@ Visualize RTs
 
 ```
 
-
 Eliminate outliers
 
 filtrar 1: como Uittenhove et al. (2016)
-- filtrar por encima y por debajo de las 3 desviaciones típicas de la media
-- o mediana? - mejor para niños?
+- filtrar por encima y por debajo de las 3 desviaciones típicas de la mediana - mejor para niños?
 
 ```{r}
 
 ```
+
+Bagnoud et al. (2021)
+```{r}
+
+```
+
+
+Uittenhove et al. (2016)
+problema: no reportan estrategias
+```{r}
+
+```
+
 
 Corregir los tiempos de reacción por el naming (igual que Uittenhove et al., 2016)
 p. 293
@@ -273,16 +646,4 @@ Covariables
 ```{r}
 
 ```
-
-
-
-
-Para comparar los datos:
-filtrar 2: como Bagnoud et al. (2021)
-- coger la mediana directamente
-```{r}
-
-```
-
-
 
