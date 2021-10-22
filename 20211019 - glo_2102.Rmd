@@ -74,6 +74,43 @@ The size effect
 - retrieval
 - procedures (Thevenot, Uittenhove)
 
+
+
+**Predictions**
+
+sum = 10 special case
+sum > 10 qualitatively different?
+rule 9+n may be used more by Grade 6 children in comparison to Grade 1 children
+
+0-problems and 1-problems are special category sums (rule-based) and will be evaluated separately: no size effect should be observed
+- creo que es importante corregir por el voice-key
+
+
+For ties, substantial size effect should be observed at the beginning, but not at the end of acquisition. ~ First kids use counting, but end up using more efficient strategies, such as direct retrieval
+- 1. but could still present interference effect, however, this will be smaller in magnitude because ties belong to smaller memory network (in other words, weaker interference in comparison to non-tie problems)
+  - Campbell & Oliphant (1992)
+  - Graham & Campbell (19992)
+- 2. or, more efficient memory access
+  - Ashcraft & Battaglia (1978)
+  - Campbell & Gunter (2002)
+  - LeFevre et al. (2004)
+
+
+For non-tie problems, 
+
+The size effect may not be linear but quartic: 
+- 1st cuadratic trend from sum 2 to 10; steep increase from 5 - 6 - 7 followed by a plateau from 7 - 8 - 9 and then 10 resolved faster because it is a special category
+- 2nd cuadratic trend from 10 to 17, because non-tie sum 16 and 17 carried out by adding to 9 - adding to 9 may be more rule based? (9 + n ~ 10 + n-1 )
+- we can also test this 9+n = x vs. y + z = x
+- if sum to 10 eliminated  and 9+n eliminated, the trend should be linear
+- there will be group differences (Grade 1 slower than Grade 6)
+- not sure about the quartic trend in Grade 1, may not apply the 9+n rule - only cubic trend?
+
+Tie and non-tie problems will follow the same trend in Grade 1 children (size effect)
+
+Tie and non-tie problems will follow different trend in Grade 6 children, size effect in non-ties and no size effect in ties
+
+
 **Method**
 
 In total, 61 children form Grade 1 and Grade 6 were involved in this study. The data of one first grader were discarded because he did not complete the task, and the data of one sixth grader were also discarded because of technical issues. Therefore, the cross-sectional analysis involved 31 first graders (12 female; mean age = 6.19 years, SD = 0.40 years ) and 28 sixth graders (15 female; mean age = 11.52 years, SD = 0.63 years).
@@ -107,6 +144,7 @@ Children were tested individually in a single session during which they complete
 Load packages
 ```{r}
 library(tidyverse)
+library(rethinking)
 library(knitr)
 library(kableExtra)
 library(lme4)
@@ -114,10 +152,23 @@ library(lme4)
 sessionInfo()
 ```
 
+
+
+
+TO-DO:
+1. participant numbers
+2. 1 + 1 as tie, not sum_n1
+3. WM measures
+4. Raven measures
+
+run the analysis
+
+run the analysis again and correct for naming (as in Uittenhove: problem - no es nada clara en cómo lo hace)
+
+
+
 Load data
 ```{r}
-# setwd("/Users/Filip/Desktop/PhD 2020/__20210227 - paper Gloria niños/glo_2102/glo_2102")
-
 nam.p <- read_csv2("primaria naming.csv", skip = 1) #naming primaria
 nam.s <- read_csv2("sexto naming.csv", skip = 1) #naming sexto
 d.p <- read_csv2("primaria sumas.csv", skip = 1) #data primaria
@@ -156,7 +207,7 @@ d.p <- d.p %>%
   arrange(subject) %>% 
   mutate(row_id = 1:n(),
          exp = "primaria",
-         tie = if_else(op.1 == op.2 & op.1 != 1 & op.1 != 0, 1, 0),
+         tie = if_else(op.1 == op.2 & op.1 != 0, 1, 0),
          tie_small = if_else(tie == 1 & sum <= 8, 1, 0),
          tie_large = if_else(tie == 1 & sum > 8, 1, 0),
          tie_degree = case_when(tie_small == 1 ~ 1,
@@ -165,8 +216,8 @@ d.p <- d.p %>%
                                 tie_large != 1 ~ 0,
                                 TRUE ~ 0),
          sum_n0 = if_else(op.1 == 0 | op.2 == 0, 1,0),
-         sum_n1 = if_else(sum_n0 != 1 & op.1 == 1 | sum_n0 != 1 & op.2 == 1, 1, 0), # sums 1 + 0 also classified as n_1
-         sum_small = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & op.1 <= 4 & op.2 <= 4, 1, 0),
+         sum_n1 = if_else(tie != 1 & sum_n0 != 1 & op.1 == 1 | tie != 1 & sum_n0 != 1 & op.2 == 1, 1, 0),
+         sum_small = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & op.1 <= 4 & op.2 <= 4, 1, 0), #small y medium a lo mejor no tiene sentido
          sum_medium = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum <= 10, 1, 0),
          sum_large = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum_medium != 1, 1 , 0),
          sum_degree = case_when(sum_small == 1 ~ 1,
@@ -182,22 +233,24 @@ err_primero <- read_csv2("primaria_err_row_id.csv")
 d.p$ACC <- err_primero$ACC
 #sum(d.p$ACC) #651 erores
 
-d.p$subject <- as.factor(d.p$subject)
-#levels(d.p$subject) #6, 28 eliminated
+d.p$subject <- as.factor(d.p$subject) #6 and 28 eliminated
+levels(d.p$subject)
+levels(d.p$subject) <- c("S001","S002","S003","S004","S005","S006","S007","S008","S009","S010","S011","S012","S013","S014","S015","S016","S017","S018","S019","S020","S021","S022","S023","S024","S025","S026","S027","S028","S029","S030")
+levels(d.p$subject)
 
 # check:
 # num_items *3 (blocks) *30 (participants)
 
-# sum(d.p$tie) #720
-# 8*3*30
-# sum(d.p$tie_small) #270
-# 3*3*30
+# sum(d.p$tie) #810
+# 9*3*30
+# sum(d.p$tie_small) #360
+# 4*3*30
 # sum(d.p$tie_large) #450
 # 5*3*30
 # sum(d.p$sum_n0) #1710
 # 19*3*30
-# sum(d.p$sum_n1) #1530
-# 17*3*30
+# sum(d.p$sum_n1) #1440
+# 16*3*30
 # sum(d.p$sum_small) #540
 # 6*3*30
 # sum(d.p$sum_medium) #1620
@@ -207,13 +260,11 @@ d.p$subject <- as.factor(d.p$subject)
 
 #9000 obs = 30 subjects, need to add 28
 
-
 #TO-DO: recodificar participantes
 ```
 Sexto
 ```{r}
 d.s <- read_csv2("sexto sumas.csv", skip = 1) #data sexto
-
 
 d.s <- d.s %>% 
   filter(Bloques != is.na(TRUE)) %>% 
@@ -235,7 +286,7 @@ d.s <- d.s %>%
   arrange(subject) %>% 
   mutate(row_id = 1:n(),
          exp = "primaria",
-         tie = if_else(op.1 == op.2 & op.1 != 1 & op.1 != 0, 1, 0),
+         tie = if_else(op.1 == op.2 & op.1 != 0, 1, 0),
          tie_small = if_else(tie == 1 & sum <= 8, 1, 0),
          tie_large = if_else(tie == 1 & sum > 8, 1, 0),
          tie_degree = case_when(tie_small == 1 ~ 1,
@@ -244,7 +295,7 @@ d.s <- d.s %>%
                                 tie_large != 1 ~ 0,
                                 TRUE ~ 0),
          sum_n0 = if_else(op.1 == 0 | op.2 == 0, 1,0),
-         sum_n1 = if_else(sum_n0 != 1 & op.1 == 1 | sum_n0 != 1 & op.2 == 1, 1, 0), # sums 1 + 0 also classified as n_1
+         sum_n1 = if_else(tie != 1 & sum_n0 != 1 & op.1 == 1 | tie != 1 & sum_n0 != 1 & op.2 == 1, 1, 0), # sums 1 + 0 also classified as n_1
          sum_small = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & op.1 <= 4 & op.2 <= 4, 1, 0),
          sum_medium = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum <= 10, 1, 0),
          sum_large = if_else(tie != 1 & sum_n0 != 1 & sum_n1 != 1 & sum_small != 1 & sum_medium != 1, 1 , 0),
@@ -261,60 +312,69 @@ err_sexto <- read_csv2("sexto_err_row_id.csv")
 d.s$ACC <- err_sexto$ACC
 #sum(d.s$ACC) #251 errors
 
-d.s$subject <- as.factor(d.s$subject)
-#levels(d.s$subject) #14 eliminated
+d.s$subject <- as.factor(d.s$subject) #14 eliminated
+levels(d.s$subject)
+levels(d.s$subject) <- c("S031","S032","S033","S034","S035","S036","S037","S038","S039","S040","S041","S042","S043","S044","S045","S046","S047","S048","S049","S050","S051","S052","S053","S054","S055","S056","S057","S058")
+levels(d.s$subject)
 
 #TO-DO: recodificar participantes
 #something like "seq_along(participant) for i in participant <- 36+i
 ```
 Merge the dfs together
 ```{r}
-d <- rbind(d.p,
-           d.s)
-
-rm(d.p,
-   d.s,
-   err_primero,
-   err_sexto)
+d <- rbind(d.p, d.s) #merge the two dfs
+rm(d.p, d.s, err_primero, err_sexto) #clean the workspace
 ```
 
 
 Re-definining variable types and specifying contrasts
 ```{r}
 
-#tie vs. non-tie sum-to-zero contrast
+#Categorical variables as factors
+
+#tie vs. non-tie: sum-to-zero contrast
 d$tie <- as.factor(d$tie)
-levels(d$tie)
 (levels(d$tie) <- c("non-tie", "tie"))
-contrasts(d$tie) <- contr.sum(2)
+(contrasts(d$tie) <- contr.sum(2))
 
-#grade 1 vs. grade 6 sum-to-zero-contrast
+#grade 1 vs. grade 6: sum-to-zero-contrast
 d$group <- as.factor(d$group)
-levels(d$group) <- c("grade 1", "grade 6")
-contrasts(d$group) <- contr.sum(2)
+(levels(d$group) <- c("grade 1", "grade 6"))
+(contrasts(d$group) <- contr.sum(2))
 
 
-#TO-DO:
-
-#Quitar el extra primero para especificar a los contrastes??
-
-
-#sum_degree sequential differences contrast
-d$sum_degree <- as.factor(d$sum_degree)
-levels(d$sum_degree)
-(levels(d$sum_degree) <- c("extra", "small", "medium", "large"))
-
-#tie_degree sum-to-zero contrast
-d$tie_degree <- as.factor(d$tie_degree)
-levels(d$tie_degree)
-(levels(d$tie_degree) <- c("extra", "small", "large"))
-
-
+# #TO-DO: cuando quiera comparar los small, medium, and large sums
+# 
+# #Quitar el extra primero para especificar a los contrastes??
+# 
+# 
+# #sum_degree sequential differences contrast
+# d$sum_degree <- as.factor(d$sum_degree)
+# levels(d$sum_degree)
+# (levels(d$sum_degree) <- c("extra", "small", "medium", "large"))
+# 
+# #tie_degree sum-to-zero contrast
+# d$tie_degree <- as.factor(d$tie_degree)
+# levels(d$tie_degree)
+# (levels(d$tie_degree) <- c("extra", "small", "large"))
 
 
+#Continuous variables: scale and center
 
+#the sum of op.1 and op.2
 
+#datasframe without n+0 and n+1
+d.2 <- d %>% filter(sum_n0 == 0 & sum_n1 == 0) #without sum+0 and sum+1
+d.2$sum.s <- scale(d.2$sum)
 
+dens(d.2$sum.s) #ok a lo mejor meto 1+1 as +1 problems a ne ties
+mean(d.2$sum.s)
+sd(d.2$sum.s)
+
+# levels(d$subject)
+
+d$item <- as.factor(d$item)
+levels(d$item)
 ```
 
 Accuracy summary
@@ -349,26 +409,144 @@ t.2.2 <- d %>%
 
 #small, medium and large sums per group
 t.2.3 <- d %>% 
-  filter(sum_degree != "extra") %>% 
+  filter(sum_degree != 0) %>% 
   group_by(group, sum_degree) %>% 
   summarize(accuracy = (1-mean(ACC))*100) %>% 
   print()
 
 #small tie vs. large tie per group
 t.2.4 <- d %>% 
-  filter(tie_degree != "extra") %>% 
+  filter(tie_degree != 0) %>% 
   group_by(group, tie_degree) %>% 
   summarize(accuracy = (1-mean(ACC))*100) %>% 
   print()
 ```
 
 
+Eliminate outliers
+
+filtrar 1: como Uittenhove et al. (2016)
+- filtrar por encima y por debajo de las 3 desviaciones típicas de la mediana - mejor para niños?
+
+```{r}
+d.errors_with <- d %>% filter(ACC == 1)
+d.errors_without <- d %>% filter(ACC != 1)
+
+d.errors_without <- d.errors_without %>% group_by(subject) %>% 
+  mutate(outliers = if_else(RT > median(RT) + 3*sd(RT) | RT < median(RT) - 3*sd(RT), 1, 0))
+
+sum(d.errors_without$outliers)
+
+d.outliers_with <- d.errors_without %>% filter(outliers == 1)
+d.outliers_without <- d.errors_without %>% filter(outliers != 1)
+```
 
 
-<!-- Accuracy analysis: a lo mejor ni siquiera hay que hacerlo? Igual que Bagnoud et al.? -->
-<!-- ```{r} -->
 
-<!-- ``` -->
+TO-DO: Un summary con el summary function...
+```{r}
+
+```
+
+
+```{r}
+rm(d.errors_with,
+   d.errors_without,
+   d.outliers_with)
+
+```
+
+
+RT summary
+```{r, results = "asis"}
+#errors per group
+t.3.1 <- d.outliers_without %>%
+  group_by(group) %>% 
+  summarize("Mean respone times" = mean(RT),
+            "Median response times" = median(RT)) %>%   print() %>% 
+  knitr::kable(caption = "Table 1. Overall accuracy for each group", digits = 2) %>% 
+  kableExtra::kable_styling(full_width = FALSE)
+
+#tie vs. non-tie per group
+t.1.2 <- d.outliers_without %>%
+  group_by(group, tie) %>% 
+  summarize("Mean respone times" = mean(RT),
+            "Median response times" = median(RT)) %>% 
+  print()
+
+#sum n+0
+t.2.1 <- d.outliers_without %>%
+  filter(sum_n1 == 1) %>% 
+  group_by(group) %>% 
+  summarize("Mean respone times" = mean(RT),
+            "Median response times" = median(RT)) %>%   print()
+
+#sum n+1
+t.2.2 <- d.outliers_without %>%
+  filter(sum_n0 == 1) %>% 
+  group_by(group) %>% 
+  summarize("Mean respone times" = mean(RT),
+            "Median response times" = median(RT)) %>%   print()
+
+#small, medium and large sums per group
+t.2.3 <- d.outliers_without %>% 
+  filter(sum_degree != 0) %>% 
+  group_by(group, sum_degree) %>% 
+  summarize("Mean respone times" = mean(RT),
+            "Median response times" = median(RT)) %>%   print()
+
+#small tie vs. large tie per group
+t.2.4 <- d.outliers_without %>% 
+  filter(tie_degree != 0) %>% 
+  group_by(group, tie_degree) %>% 
+  summarize("Mean respone times" = mean(RT),
+            "Median response times" = median(RT)) %>%   print()
+```
+Visualize RTs
+```{r}
+ggplot(d.outliers_without, aes(x = group, y = RT)) + 
+  geom_boxplot()
+
+ggplot(data = filter(d.outliers_without, group == "grade 1"), aes(x = RT)) + 
+  geom_histogram()
+
+ggplot(data = filter(d.outliers_without, group == "grade 6"), aes(x = RT)) + 
+  geom_histogram()
+
+```
+
+Bagnoud et al. (2021)
+```{r}
+
+```
+
+
+Uittenhove et al. (2016)
+problema: no reportan estrategias
+```{r}
+
+```
+
+
+Corregir los tiempos de reacción por el naming (igual que Uittenhove et al., 2016)
+p. 293
+
+"Average individual RTs were subsequently cor- rected according to sensitivity of the voice key by subtracting to these RTs the deviation to the mean of the naming time corre- sponding to the answer."
+```{r}
+
+```
+
+Covariables
+- load WM scores (direct and inverse) + Raven scores
+```{r}
+
+```
+
+Resumen de analysis de Bagnoud et al. (2021):
+
+Accuracy analized with correlations... in Supplementary materials
+
+Response times:
 
 Tie vs. non-tie problems (ANOVAs)
 - problem type(tie vs. non-tie) + group(grade 1 vs. grade 6) + problem type:group
@@ -397,22 +575,52 @@ Medium non-tie problems
 - ?why do they do it?
 
 
+1-Problems
+- no statistics ran
+
+Large non-tie
+- no statistics ran
+
+Tie-problems
+"it is possible to consider only the sum and the sum of the operands squared (i.e., [O1 + O2]2)"
+- predictors: sum and (op.1 + op.2)^2
+- pero no es verdad: op.1^2 + op.2^2 también podría serlo
+
+Small tie problems
+- sum and sum squared good predictor for Grade 1
+- no predictor for Grade 3 to adulthood
+
+Large tie problems
+- gráficas: comentando 9+9
+- no statistics ran
+
+
 My take on it:
 ```{r}
-library(lme4)
-
 #without higher-order polynomials, check if the RE structure is ok and whether it converges
 
-m1.rt <- lme(RT ~ group + tie + sum +                                           #main effects
-                  group:tie +                                                   #first order interaction
-                  group:sum +                                                   #first order interactions
-                  tie:sum +                                                     #first order interactions
-                  group:tie:sum +                                               #second order interactions, critical comparison
-               (1 + sum|subject) +
-               (1 + tie|subject) +
-               (1 + sum:tie|subject) +
-               (1|item)
+d.m1 <- d.outliers_without %>% filter(sum_n0 == 0 & sum_n1 == 0) 
+d.m1$sum.s <- scale(d.m1$sum)
+mean(d.m1$sum.s)
+sd(d.m1$sum.s)
+
+
+m1.rt <- lmer(RT ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (1 + sum.s|subject) +
+                (1 + tie|subject) +
+                (1 + sum.s:tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE
                )      
+# doesn't converge
+
+library(afex)
+
+all_fit(m1.rt)
 
 #(1 + sum|subject):
 
@@ -440,6 +648,230 @@ m1.rt <- lme(RT ~ group + tie + sum +                                           
 (0 + 1:tie|subject)
 (0 + sum:tie|subject)
 (0 + 1:sum:tie|subject)
+
+
+# inentar hacer los scaled gradients
+# lmerControl etc.
+
+
+#probar optimizadores
+#aumentar numero de ciclos
+#remove derivative calculations
+
+m1.1.rt <- lmer(RT ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (1 + sum.s|subject) +
+                (1 + tie|subject) +
+                (1 + sum.s:tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(calc.derivs = FALSE)
+               )     
+
+all_fit(m1.1.rt)
+#doesn't converge
+
+
+m1.2.rt <- lmer(RT ~ group + tie + sum.s +                                         #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (1 + sum.s|subject) +
+                (1 + tie|subject) +
+                (1 + sum.s:tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+               )  
+summary(m1.2.rt)
+
+
+
+m2.rt <- lmer(RT ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (1|subject) +
+                (0 + sum.s|subject) +
+                (0 + tie|subject) +
+                (0 + sum.s:tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+               )
+
+m3.rt <- lmer(RT ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (1 + sum.s + tie + sum.s:tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+               )
+#es esto lo mismo?
+m3.1.rt <- lmer(RT ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (1 + sum.s*tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+               )
+
+summary(m3.rt)
+summary(m3.1.rt)
+#son idénticos
+
+m3.1.1.rt <- lmer(RT ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (1 + sum.s+tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+               )
+
+?anova()
+anova(m3.1.rt, m3.1.1.rt)
+#the more complex model: m3.1.rt is better
+
+m3.1.2.rt <- lmer(RT ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (sum.s*tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+               )
+
+summary(m3.1.2.rt)
+#otro modelo idéntico
+
+m3.1.2.rt <- lmer(RT ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (sum.s*tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+               )
+
+#tendría sentido meter en 1|item op.1 u op.2?
+
+# m4.rt <- lmer(RT ~ group + tie + sum.s +                                           #main effects
+#                    group:tie +                                                     #first order interaction
+#                    group:sum.s +                                                   #first order interactions
+#                    tie:sum.s +                                                     #first order interactions
+#                    group:tie:sum.s +                                               #second order interactions, critical comparison
+#                 (1 + sum.s*tie|subject) +
+#                 (1 + op.1*op.2|item),
+#               data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+#                )
+# #no lo corro a lo mejor no tiene sentido
+
+```
+
+Modelo m3.1.rt
+```{r}
+coef(m3.1.rt)
+
+hist(residuals(m3.1.rt))
+qqnorm(residuals(m3.1.rt))
+plot(m3.1.rt)
+
+
+# Fitting sum.s square: raději ne
+
+# m5.rt <- lmer(RT ~ group + tie + sum.s + I(sum.s^2) +                              #main effects
+#                    group:tie +                                                     #first order interaction
+#                    group:sum.s +                                                   #first order interactions
+#                    group:I(sum.s^2) +
+#                    tie:sum.s +                                                     #first order interactions
+#                    tie:I(sum.s^2) +
+#                    group:tie:sum.s +                                               #second order interactions, critical comparison
+#                    group:tie:I(sum.s^2) +  
+#                 (1 + sum.s*tie|subject) +
+#                 (1|item),
+#               data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+#                )
+# 
+# m5.1.rt <- lmer(RT ~ group + tie + sum.s + I(sum.s^2) +                              #main effects
+#                    group:tie +                                                     #first order interaction
+#                    group:sum.s +                                                   #first order interactions
+#                    group:I(sum.s^2) +
+#                    tie:sum.s +                                                     #first order interactions
+#                    tie:I(sum.s^2) +
+#                    group:tie:sum.s +                                               #second order interactions, critical comparison
+#                    group:tie:I(sum.s^2) +  
+#                 (1 + sum.s*tie|subject) +
+#                 (1|item),
+#               data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE, list(maxfun = 1e9))
+#                )
+# 
+# # m5.2.rt <- lmer(RT ~ group*tie*(sum.s + I(sum.s^2) + I(sum.s^3) + I(sum.s^4)) +
+# #                 (1 + sum.s*tie|subject) +
+# #                 (1|item),
+# #               data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE, list(maxfun = 1e9))
+# #                )
+# 
+# m5.3.rt <- lmer(RT ~ group*tie*sum.s + I(sum.s^2) + I(sum.s^3) + I(sum.s^4) +
+#                 (1 + sum.s*tie|subject) +
+#                 (1|item),
+#               data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE, list(maxfun = 1e9))
+#                )
+# 
+# summary(m5.rt)
+
+
+m6.1.rt <- lmer(log(RT) ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (1 + sum.s*tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+               )
+
+summary(m6.1.rt)
+hist(residuals(m6.1.rt))
+qqnorm(residuals(m6.1.rt))
+plot(m6.1.rt)
+
+#hay que eliminar puntos con residuals > 2
+
+p$res <- m6.1.rt$residual >2 
+
+summary(m3.1.rt)
+
+m6.2.rt <- lmer(log(RT) ~ group + tie + sum.s +                                           #main effects
+                   group:tie +                                                     #first order interaction
+                   group:sum.s +                                                   #first order interactions
+                   tie:sum.s +                                                     #first order interactions
+                   group:tie:sum.s +                                               #second order interactions, critical comparison
+                (1 + sum.s+tie|subject) +
+                (1|item),
+              data = d.m1, REML = FALSE, lmerControl(optimizer = "bobyqa", calc.derivs = FALSE)
+               )
+
+anova(m6.1.rt, m6.2.rt)
+
+```
+
+
+```{r}
+#errores que he cometido
+#no me he visualizado los datos
+#he probado la random structure a lo loco
+
+
 ```
 
 
@@ -448,10 +880,8 @@ Prune the random effect structure
 
 ```
 
-
-```{r}
 Testing higher order polynomials
-
+```{r}
 #Add the square term
 
 m2.rt <- lme(RT ~ group + tie + sum + sum_sq +                                  #main effects
@@ -476,6 +906,10 @@ m3.rt <- lme(RT ~ group + tie + sum + sum_sq + sum_cub +                        
                (0 + sum:tie|subject) 
                )     
 
+
+#Add quartic term? Maybe
+
+
 #random effect structure:
 #per participant: sum, sum_sq, sum_cub, tie:sum, tie:s
 
@@ -483,34 +917,9 @@ m3.rt <- lme(RT ~ group + tie + sum + sum_sq + sum_cub +                        
 ```
 
 
-```{r}
-mean(d$sum)
-#9
-mean(scale(d$sum))
-sd(scale(d$sum))
-plot(d$sum)
-plot(scale(d$sum))
-
-library(rethinking)
-library(splines)
-
-d.2 <- d %>% filter(sum_n0 == 0 & sum_n1 == 0)
-d.2.1 <- d %>% filter(sum_n0 == 1 | sum_n1 == 1)
-
-dens(d.2$sum)
-dens(d.2.1$sum)
-```
 
 
-Contrast coding
-```{r}
-
-```
-
-
-
-
-
+ACC old stuff:
 
 ```{r}
 m1.acc <- glmer(ACC ~ group + tie + sum + group:tie +  +
@@ -602,48 +1011,3 @@ m5.acc.glmer(ACC ~ tie + sum + group + sum:group + sum:tie + sum:group:tie)
 #data: tendría que limitarme a 4, 6, 8, 10, 12, 14, 16, 18
 #sin n+0 a n+1
 ```
-
-
-Visualize RTs
-```{r}
-
-
-
-```
-
-Eliminate outliers
-
-filtrar 1: como Uittenhove et al. (2016)
-- filtrar por encima y por debajo de las 3 desviaciones típicas de la mediana - mejor para niños?
-
-```{r}
-
-```
-
-Bagnoud et al. (2021)
-```{r}
-
-```
-
-
-Uittenhove et al. (2016)
-problema: no reportan estrategias
-```{r}
-
-```
-
-
-Corregir los tiempos de reacción por el naming (igual que Uittenhove et al., 2016)
-p. 293
-
-"Average individual RTs were subsequently cor- rected according to sensitivity of the voice key by subtracting to these RTs the deviation to the mean of the naming time corre- sponding to the answer."
-```{r}
-
-```
-
-Covariables
-- load WM scores (direct and inverse) + Raven scores
-```{r}
-
-```
-
