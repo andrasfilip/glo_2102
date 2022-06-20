@@ -1,0 +1,1569 @@
+---
+title: "20220518 -TIES"
+author: "Filip Andras"
+date: "5/18/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(MASS)
+library(naniar)
+library(gridExtra)
+library(lme4)
+library(afex)
+library(lattice)
+library(ggeffects)
+library(harrypotter)
+library(knitr)
+library(kableExtra)
+library(jtools)
+library(gridExtra)
+library(ggpubr)
+library(broom.mixed)
+library(sjPlot)
+```
+
+```{r}
+sessionInfo()
+options(scipen = 999)
+getwd()
+# setwd("/Users/Filip/Desktop/PhD 2020/__20210227 - Gloria/glo_2102/glo_2102")
+```
+
+```{r}
+d.outliers_without <- read_csv("d_outliers_without.csv") 
+#para crear esto es hasta la línea 527 en el otro documento
+#16138 data líneas
+```
+
+# Ties -------------------------------------------------------------------------
+
+# Small ties
+```{r}
+d <- d.outliers_without %>% 
+  filter(tie_small == 1)
+
+d$sum.f.n <- scale(as.numeric(d$sum.f))
+hist(d$sum.f.n, breaks = 20)
+
+xtabs(~ sum.f + group.cod, data = d)
+
+# Alternative predictors -------------------------------------------------------
+# min y max es lo mismo 
+
+# Alternative predictors -------------------------------------------------------
+# min and max es lo mismo que op.1 y op.2 => evaluar solo op.1
+# product, sum^2 y op.1^2+op.2^2 es lo mismo también
+
+# d$pre.min.n            <- scale(as.numeric(d$pre.min))             # min
+# d$pre.max.n            <- scale(as.numeric(d$pre.max))             # max
+d$pre.product.n        <- scale(as.numeric(d$pre.product))         # product (op.1*op.2)
+# d$pre.sum_squared.n    <- scale(as.numeric(d$pre.sum_squared))     # sum_squared ((op.1 + op.2)^2)
+# d$pre.sup_op_squared.n <- scale(as.numeric(d$pre.sum_op_squared))  # sum of squared operands (op.1^2 + op.2^2)
+d$op.1.n               <- scale(as.numeric(d$op.1))                # op.1
+# d$op.2.n               <- scale(as.numeric(d$op.2))                # op.2
+
+# hist(d$pre.min.n, breaks = 10)
+# hist(d$pre.max.n, breaks = 10)
+hist(d$pre.product.n , breaks = 10)
+# hist(d$pre.sum_squared.n, breaks = 20)
+# hist(d$pre.sup_op_squared.n, breaks = 20)
+hist(d$op.1.n, breaks = 10)
+# hist(d$op.2.n, breaks = 10)
+```
+
+
+```{r}
+# SPECIFY THE GROUP
+group_num = -0.5                                                                 # -0.5 ~ grade 1; 0.5 ~ grade 6
+
+# Grade 1 ----------------------------------------------------------------------
+# m1 <- lmer(log(RT) ~ sum.f.n + (1 + sum.f.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# summary(m1)
+# # singular
+
+m1 <- lmer(log(RT) ~ sum.f.n + (1 + sum.f.n||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+summary(m1)
+# ok
+afex::mixed(log(RT) ~ sum.f.n + (1 + sum.f.n||subject) + (1|item), data = filter(d, group.cod == group_num), method = "LRT")
+
+performance::check_model(m1)
+
+# predictions ------------------------------------------------------------------
+
+pre.m1 <- ggpredict(m1, terms = "sum.f.n", se = TRUE, back.transform = FALSE)
+pre.m1
+plot(pre.m1)
+
+# sum.f.n | Predicted |       95% CI
+# ----------------------------------
+#   -1.41 |      7.42 | [7.19, 7.66]
+#   -0.71 |      7.50 | [7.32, 7.68]
+#    0.00 |      7.58 | [7.42, 7.74]
+#    0.71 |      7.66 | [7.46, 7.85]
+#    1.42 |      7.74 | [7.48, 7.99]
+```
+
+
+```{r}
+## Control models:
+# square -----------------------------------------------------------------------
+# m1.sq <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + (1 + sum.f.n + I(sum.f.n^2)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# # failed to converge
+# summary(m1.sq)
+
+m1.sq <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + (1 + sum.f.n + I(sum.f.n^2)||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+#ok
+summary(m1.sq)
+
+# cubic ------------------------------------------------------------------------
+# m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2) + I(sum.f.n^3)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# # singular
+# summary(m1.cu)
+# 
+# m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# # singular
+# summary(m1.cu)
+
+# m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2)||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# summary(m1.cu)
+# # singular
+
+m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+summary(m1.cu)
+# singular: DEBO REDUCIR LOS DATOS
+
+d.test <- d %>% filter(group.cod == -0.5) %>% group_by(subject, sum.f.n) %>% summarize(RT = mean(log(RT)))
+
+m1.cu <- lmer(RT ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1|subject), data = d.test, REML = FALSE)
+summary(m1.cu)
+# a la vez no cambia los resultados
+
+afex::mixed(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1|subject) + (1|item), data = filter(d, group.cod == group_num), method = "LRT")
+afex::mixed(RT ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1|subject), data = d.test, method = "LRT")
+
+#
+#
+#
+# have to take out 10 from the analysis
+# tiene solo 5 ítems
+#
+#
+
+pre.m1.cu <- ggpredict(m1.cu, terms = "sum.f.n[all]", se = TRUE, back.transform = FALSE)
+pre.m1.cu
+
+# sum.f.n | Predicted |       95% CI
+# ----------------------------------
+#   -1.41 |      7.43 | [7.29, 7.58]
+#   -0.71 |      7.36 | [7.24, 7.49]
+#    0.00 |      7.65 | [7.54, 7.77]
+#    0.71 |      7.87 | [7.75, 8.00]
+#    1.42 |      7.57 | [7.43, 7.72]
+   
+plot(pre.m1.cu)
+```
+
+#.
+#.
+#.
+# Aquí los modelos alternativos también tendrían que ser cůbicos
+
+```{r}
+## Alternative predictors ------------------------------------------------------
+# m1.e1 <- lmer(log(RT) ~ pre.min.n +            (1 + pre.min.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e2 <- lmer(log(RT) ~ pre.max.n +            (1 + pre.max.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+m1.e3 <- lmer(log(RT) ~ pre.product.n +        (1 + pre.product.n|subject) +        (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e4 <- lmer(log(RT) ~ pre.sum_squared.n +    (1 + pre.sum_squared.n|subject) +    (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e5 <- lmer(log(RT) ~ pre.sup_op_squared.n + (1 + pre.sup_op_squared.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+m1.e6 <- lmer(log(RT) ~ op.1.n +               (1 + op.1.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE) #singular
+# m1.e7 <- lmer(log(RT) ~ op.2.n +               (1 + op.2.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+
+aov_table <- anova(m1,
+                   # m1.e1, 
+                   # m1.e2,
+                   m1.e3, 
+                   # m1.e4, 
+                   # m1.e5,
+                   m1.e6
+                   # m1.e7
+                   )
+```
+
+# Change the names for each table ----------------------------------------------
+```{r}
+group_name = "grade 1"                                                          # grade 1 or grade 6
+problem_type = "tie"                                                            # non-tie or tie
+problem_size = "small"                                                          # very small, medium small, large, small
+```
+
+# TABLE 1: Models and control models -------------------------------------------
+```{r}
+table.1 <- matrix(NA, nrow = 3, ncol = 12)
+colnames(table.1) <- c("age_group",
+                        "problem_type",
+                        "problem_size",
+                        "VI",
+                        "intercept estimate [log]",
+                        "VI estimate [log]",
+                        "SE",
+                        "df",
+                        "t.val",
+                        "p.val",
+                        "AIC",
+                        "BIC")
+
+table.1[,4] <- c("Sum", 
+                 # "Min(op.1|op.2)", 
+                 # "Max(op.1|op.2)", 
+                 "product/sum^2/op.1^2+op.2^2", 
+                 # "sum_sq ~ (op.1+op.2)^2", 
+                 # "sum_sq_op ~ op.1^2+op.2^2", 
+                 "op.1/op.2/Min/Max" 
+                 # "op.2"
+                 )
+
+table.1[,1] <- group_name
+table.1[,2] <- problem_type
+table.1[,3] <- problem_size
+
+View(table.1)
+
+table.1[1,5] <- round(summary(m1)$coef[1,1], 2)
+table.1[1,6] <- round(summary(m1)$coef[2,1], 2)
+table.1[1,7] <- round(summary(m1)$coef[2,2], 2)
+table.1[1,8] <- round(summary(m1)$coef[2,3], 2)
+table.1[1,9] <- round(summary(m1)$coef[2,4], 2)
+table.1[1,10]<- round(summary(m1)$coef[2,5], 5)
+#------------------------------------------------------------------------------ Min
+# table.1[2,5] <- "cannot evaluate"
+# table.1[2,6] <- "cannot evaluate"
+# table.1[2,7] <- "cannot evaluate"
+# table.1[2,8] <- "cannot evaluate"
+# table.1[2,9] <- "cannot evaluate"
+# table.1[2,10]<- "cannot evaluate"
+# #-------------------------------.---------------------------------- Max
+# table.1[3,5] <- "cannot evaluate"
+# table.1[3,6] <- "cannot evaluate"
+# table.1[3,7] <- "cannot evaluate"
+# table.1[3,8] <- "cannot evaluate"
+# table.1[3,9] <- "cannot evaluate"
+# table.1[3,10]<- "cannot evaluate"
+#-------------------------------.---------------------------------- product
+table.1[2,5] <- round(summary(m1.e3)$coef[1,1], 2)
+table.1[2,6] <- round(summary(m1.e3)$coef[2,1], 2)
+table.1[2,7] <- round(summary(m1.e3)$coef[2,2], 2)
+table.1[2,8] <- round(summary(m1.e3)$coef[2,3], 2)
+table.1[2,9] <- round(summary(m1.e3)$coef[2,4], 2)
+table.1[2,10]<- round(summary(m1.e3)$coef[2,5], 5)
+#-------------------------------.---------------------------------- sum_sq
+# table.1[5,5] <- "cannot evaluate"
+# table.1[5,6] <- "cannot evaluate"
+# table.1[5,7] <- "cannot evaluate"
+# table.1[5,8] <- "cannot evaluate"
+# table.1[5,9] <- "cannot evaluate"
+# table.1[5,10]<- "cannot evaluate"
+# #-------------------------------.---------------------------------- sum_sq_op
+# table.1[6,5] <- "cannot evaluate"
+# table.1[6,6] <- "cannot evaluate"
+# table.1[6,7] <- "cannot evaluate"
+# table.1[6,8] <- "cannot evaluate"
+# table.1[6,9] <- "cannot evaluate"
+# table.1[6,10]<- "cannot evaluate"
+#-------------------------------.---------------------------------- op.1
+table.1[3,5] <- round(summary(m1.e6)$coef[1,1], 2)
+table.1[3,6] <- round(summary(m1.e6)$coef[2,1], 2)
+table.1[3,7] <- round(summary(m1.e6)$coef[2,2], 2)
+table.1[3,8] <- round(summary(m1.e6)$coef[2,3], 2)
+table.1[3,9] <- round(summary(m1.e6)$coef[2,4], 2)
+table.1[3,10]<- round(summary(m1.e6)$coef[2,5], 5)
+#-------------------------------.---------------------------------- op.2
+# table.1[8,5] <- "cannot evaluate"
+# table.1[8,6] <- "cannot evaluate"
+# table.1[8,7] <- "cannot evaluate"
+# table.1[8,8] <- "cannot evaluate"
+# table.1[8,9] <- "cannot evaluate"
+# table.1[8,10]<- "cannot evaluate"
+
+table.1[,11]  <- round(aov_table[,2], 2)
+table.1[,12]  <- round(aov_table[,3], 2)
+
+View(table.1)
+```
+
+# CHANGE THE NAME HERE:
+```{r}
+table_tie.S.G1 <- table.1 %>% as.tibble()
+write.csv(table_tie.S.G1, "table_tie.S.G1.csv")
+```
+
+# TABLE 2: higher order polynomials --------------------------------------------
+```{r}
+table.2 <- matrix(NA, nrow = 6, ncol = 12) 
+
+colnames(table.2) <- c("age_group",
+                        "problem_type",
+                        "problem_size",
+                        "model",
+                        "VI",
+                        "intercept estimate [log]",
+                        "VI estimate [log]",
+                        "SE",
+                        "df",
+                        "t.val",
+                        "p.val",
+                         "note")
+
+table.2[,4] <- c("lineal", "cuadratic", "cuadratic", "cubic", "cubic", "cubic")
+table.2[,5] <- c("Sum", "Sum", "Sum^2", "Sum", "Sum^2", "Sum^3")
+
+table.2[,1] <- group_name
+table.2[,2] <- problem_type
+table.2[,3] <- problem_size
+
+View(table.2)
+
+# linear
+table.2[1,6]  <- round(summary(m1)$coef[1,1], 2)                                # intercept estimate
+table.2[1,7]  <- round(summary(m1)$coef[2,1], 2)                                # VI estimate
+table.2[1,8]  <- round(summary(m1)$coef[2,2], 2)                                # SE
+table.2[1,9]  <- round(summary(m1)$coef[2,3], 2)                                # df
+table.2[1,10] <- round(summary(m1)$coef[2,4], 2)                                # t.val
+table.2[1,11] <- round(summary(m1)$coef[2,5], 5)                                # p.val
+# cuadratic --------------------------------------------------------
+table.2[2,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate
+table.2[2,7]  <- round(summary(m1.sq)$coef[2,1], 2)                             # VI estimate
+table.2[2,8]  <- round(summary(m1.sq)$coef[2,2], 2)                             # SE
+table.2[2,9]  <- round(summary(m1.sq)$coef[2,3], 2)                             # df
+table.2[2,10] <- round(summary(m1.sq)$coef[2,4], 2)                             # t.val
+table.2[2,11] <- round(summary(m1.sq)$coef[2,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[3,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate
+table.2[3,7]  <- round(summary(m1.sq)$coef[3,1], 2)                             # VI estimate
+table.2[3,8]  <- round(summary(m1.sq)$coef[3,2], 2)                             # SE
+table.2[3,9]  <- round(summary(m1.sq)$coef[3,3], 2)                             # df
+table.2[3,10] <- round(summary(m1.sq)$coef[3,4], 2)                             # t.val
+table.2[3,11] <- round(summary(m1.sq)$coef[3,5], 5)                             # p.val
+# cubic ---------------------------------------------------------
+table.2[4,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[4,7]  <- round(summary(m1.cu)$coef[2,1], 2)                             # VI estimate
+table.2[4,8]  <- round(summary(m1.cu)$coef[2,2], 2)                             # SE
+table.2[4,9]  <- round(summary(m1.cu)$coef[2,3], 2)                             # df
+table.2[4,10] <- round(summary(m1.cu)$coef[2,4], 2)                             # t.val
+table.2[4,11] <- round(summary(m1.cu)$coef[2,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[5,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[5,7]  <- round(summary(m1.cu)$coef[3,1], 2)                             # VI estimate
+table.2[5,8]  <- round(summary(m1.cu)$coef[3,2], 2)                             # SE
+table.2[5,9]  <- round(summary(m1.cu)$coef[3,3], 2)                             # df
+table.2[5,10] <- round(summary(m1.cu)$coef[3,4], 2)                             # t.val
+table.2[5,11] <- round(summary(m1.cu)$coef[3,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[6,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[6,7]  <- round(summary(m1.cu)$coef[4,1], 2)                             # VI estimate
+table.2[6,8]  <- round(summary(m1.cu)$coef[4,2], 2)                             # SE
+table.2[6,9]  <- round(summary(m1.cu)$coef[4,3], 2)                             # df
+table.2[6,10] <- round(summary(m1.cu)$coef[4,4], 2)                             # t.val
+table.2[6,11] <- round(summary(m1.cu)$coef[4,5], 5)                             # p.val
+
+View(table.2)
+```
+
+# CHANGE THE NAMES HERE --------------------------------------------------------
+```{r}
+table_tie.S.G1.poly <- table.2 %>% as.tibble
+write.csv(table_tie.S.G1.poly, "table_tie.S.G1.poly.csv")
+```
+
+
+# .
+# .
+# .
+# probando eliminar 10
+# .
+# .
+# .
+
+
+# Small ties
+```{r}
+d <- d.outliers_without %>% 
+  filter(tie_small == 1 & item != 56)
+
+xtabs(~ sum.f, data = d)
+```
+
+
+```{r}
+d$sum.f.n <- scale(as.numeric(d$sum.f))
+hist(d$sum.f.n, breaks = 20)
+
+xtabs(~ sum.f + group.cod, data = d)
+
+# Alternative predictors -------------------------------------------------------
+# min y max es lo mismo 
+
+# Alternative predictors -------------------------------------------------------
+# min and max es lo mismo que op.1 y op.2 => evaluar solo op.1
+# product, sum^2 y op.1^2+op.2^2 es lo mismo también
+
+# d$pre.min.n            <- scale(as.numeric(d$pre.min))             # min
+# d$pre.max.n            <- scale(as.numeric(d$pre.max))             # max
+d$pre.product.n        <- scale(as.numeric(d$pre.product))         # product (op.1*op.2)
+# d$pre.sum_squared.n    <- scale(as.numeric(d$pre.sum_squared))     # sum_squared ((op.1 + op.2)^2)
+# d$pre.sup_op_squared.n <- scale(as.numeric(d$pre.sum_op_squared))  # sum of squared operands (op.1^2 + op.2^2)
+d$op.1.n               <- scale(as.numeric(d$op.1))                # op.1
+# d$op.2.n               <- scale(as.numeric(d$op.2))                # op.2
+
+# hist(d$pre.min.n, breaks = 10)
+# hist(d$pre.max.n, breaks = 10)
+hist(d$pre.product.n , breaks = 10)
+# hist(d$pre.sum_squared.n, breaks = 20)
+# hist(d$pre.sup_op_squared.n, breaks = 20)
+hist(d$op.1.n, breaks = 10)
+# hist(d$op.2.n, breaks = 10)
+```
+
+
+```{r}
+# SPECIFY THE GROUP
+group_num = -0.5                                                                 # -0.5 ~ grade 1; 0.5 ~ grade 6
+
+# Grade 1 ----------------------------------------------------------------------
+m1 <- lmer(log(RT) ~ sum.f.n + (1 + sum.f.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+summary(m1)
+
+# m1 <- lmer(log(RT) ~ sum.f.n + (1 + sum.f.n||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# summary(m1)
+# # ok
+
+performance::check_model(m1)
+
+# predictions ------------------------------------------------------------------
+
+pre.m1 <- ggpredict(m1, terms = "sum.f.n", se = TRUE, back.transform = FALSE)
+pre.m1
+plot(pre.m1)
+
+# sum.f.n | Predicted |       95% CI
+# ----------------------------------
+#   -1.41 |      7.42 | [7.19, 7.66]
+#   -0.71 |      7.50 | [7.32, 7.68]
+#    0.00 |      7.58 | [7.42, 7.74]
+#    0.71 |      7.66 | [7.46, 7.85]
+#    1.42 |      7.74 | [7.48, 7.99]
+```
+
+
+```{r}
+## Control models:
+# square -----------------------------------------------------------------------
+m1.sq <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + (1 + sum.f.n + I(sum.f.n^2)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# singular
+summary(m1.sq)
+
+m1.sq <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + (1 + sum.f.n + I(sum.f.n^2)||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+#ok
+summary(m1.sq)
+
+anova(m1, m1.sq)
+
+pre.m1.sq <- ggpredict(m1.sq, terms = "sum.f.n[all]", se = TRUE, back.transform = FALSE)
+pre.m1.sq
+plot(pre.m1.sq)
+```
+
+
+<!-- ```{r} -->
+<!-- # cubic ------------------------------------------------------------------------ -->
+<!-- # m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2) + I(sum.f.n^3)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE) -->
+<!-- # # singular -->
+<!-- # summary(m1.cu) -->
+<!-- #  -->
+<!-- # m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE) -->
+<!-- # # singular -->
+<!-- # summary(m1.cu) -->
+
+
+
+<!-- m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2)||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE) -->
+<!-- summary(m1.cu) -->
+
+
+
+
+<!-- pre.m1.cu <- ggpredict(m1.cu, terms = "sum.f.n[all]", se = TRUE, back.transform = FALSE) -->
+<!-- pre.m1.cu -->
+
+
+<!-- plot(pre.m1.cu) -->
+
+<!-- ## Alternative predictors ------------------------------------------------------ -->
+<!-- # m1.e1 <- lmer(log(RT) ~ pre.min.n +            (1 + pre.min.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE) -->
+<!-- # m1.e2 <- lmer(log(RT) ~ pre.max.n +            (1 + pre.max.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE) -->
+<!-- m1.e3 <- lmer(log(RT) ~ pre.product.n +        (1 + pre.product.n|subject) +        (1|item), data = filter(d, group.cod == group_num), REML = FALSE) -->
+<!-- # m1.e4 <- lmer(log(RT) ~ pre.sum_squared.n +    (1 + pre.sum_squared.n|subject) +    (1|item), data = filter(d, group.cod == group_num), REML = FALSE) -->
+<!-- # m1.e5 <- lmer(log(RT) ~ pre.sup_op_squared.n + (1 + pre.sup_op_squared.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE) -->
+<!-- m1.e6 <- lmer(log(RT) ~ op.1.n +               (1 + op.1.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE) #singular -->
+<!-- # m1.e7 <- lmer(log(RT) ~ op.2.n +               (1 + op.2.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE) -->
+
+<!-- aov_table <- anova(m1, -->
+<!--                    # m1.e1,  -->
+<!--                    # m1.e2, -->
+<!--                    m1.e3,  -->
+<!--                    # m1.e4,  -->
+<!--                    # m1.e5, -->
+<!--                    m1.e6 -->
+<!--                    # m1.e7 -->
+<!--                    ) -->
+<!-- ``` -->
+
+<!-- # Change the names for each table ---------------------------------------------- -->
+<!-- ```{r} -->
+<!-- group_name = "grade 1"                                                          # grade 1 or grade 6 -->
+<!-- problem_type = "tie"                                                            # non-tie or tie -->
+<!-- problem_size = "small"                                                          # very small, medium small, large, small -->
+<!-- ``` -->
+
+<!-- # TABLE 1: Models and control models ------------------------------------------- -->
+<!-- ```{r} -->
+<!-- table.1 <- matrix(NA, nrow = 3, ncol = 12) -->
+<!-- colnames(table.1) <- c("age_group", -->
+<!--                         "problem_type", -->
+<!--                         "problem_size", -->
+<!--                         "VI", -->
+<!--                         "intercept estimate [log]", -->
+<!--                         "VI estimate [log]", -->
+<!--                         "SE", -->
+<!--                         "df", -->
+<!--                         "t.val", -->
+<!--                         "p.val", -->
+<!--                         "AIC", -->
+<!--                         "BIC") -->
+
+<!-- table.1[,4] <- c("Sum",  -->
+<!--                  # "Min(op.1|op.2)",  -->
+<!--                  # "Max(op.1|op.2)",  -->
+<!--                  "product/sum^2/op.1^2+op.2^2",  -->
+<!--                  # "sum_sq ~ (op.1+op.2)^2",  -->
+<!--                  # "sum_sq_op ~ op.1^2+op.2^2",  -->
+<!--                  "op.1/op.2/Min/Max"  -->
+<!--                  # "op.2" -->
+<!--                  ) -->
+
+<!-- table.1[,1] <- group_name -->
+<!-- table.1[,2] <- problem_type -->
+<!-- table.1[,3] <- problem_size -->
+
+<!-- View(table.1) -->
+
+<!-- table.1[1,5] <- round(summary(m1)$coef[1,1], 2) -->
+<!-- table.1[1,6] <- round(summary(m1)$coef[2,1], 2) -->
+<!-- table.1[1,7] <- round(summary(m1)$coef[2,2], 2) -->
+<!-- table.1[1,8] <- round(summary(m1)$coef[2,3], 2) -->
+<!-- table.1[1,9] <- round(summary(m1)$coef[2,4], 2) -->
+<!-- table.1[1,10]<- round(summary(m1)$coef[2,5], 5) -->
+<!-- #------------------------------------------------------------------------------ Min -->
+<!-- # table.1[2,5] <- "cannot evaluate" -->
+<!-- # table.1[2,6] <- "cannot evaluate" -->
+<!-- # table.1[2,7] <- "cannot evaluate" -->
+<!-- # table.1[2,8] <- "cannot evaluate" -->
+<!-- # table.1[2,9] <- "cannot evaluate" -->
+<!-- # table.1[2,10]<- "cannot evaluate" -->
+<!-- # #-------------------------------.---------------------------------- Max -->
+<!-- # table.1[3,5] <- "cannot evaluate" -->
+<!-- # table.1[3,6] <- "cannot evaluate" -->
+<!-- # table.1[3,7] <- "cannot evaluate" -->
+<!-- # table.1[3,8] <- "cannot evaluate" -->
+<!-- # table.1[3,9] <- "cannot evaluate" -->
+<!-- # table.1[3,10]<- "cannot evaluate" -->
+<!-- #-------------------------------.---------------------------------- product -->
+<!-- table.1[2,5] <- round(summary(m1.e3)$coef[1,1], 2) -->
+<!-- table.1[2,6] <- round(summary(m1.e3)$coef[2,1], 2) -->
+<!-- table.1[2,7] <- round(summary(m1.e3)$coef[2,2], 2) -->
+<!-- table.1[2,8] <- round(summary(m1.e3)$coef[2,3], 2) -->
+<!-- table.1[2,9] <- round(summary(m1.e3)$coef[2,4], 2) -->
+<!-- table.1[2,10]<- round(summary(m1.e3)$coef[2,5], 5) -->
+<!-- #-------------------------------.---------------------------------- sum_sq -->
+<!-- # table.1[5,5] <- "cannot evaluate" -->
+<!-- # table.1[5,6] <- "cannot evaluate" -->
+<!-- # table.1[5,7] <- "cannot evaluate" -->
+<!-- # table.1[5,8] <- "cannot evaluate" -->
+<!-- # table.1[5,9] <- "cannot evaluate" -->
+<!-- # table.1[5,10]<- "cannot evaluate" -->
+<!-- # #-------------------------------.---------------------------------- sum_sq_op -->
+<!-- # table.1[6,5] <- "cannot evaluate" -->
+<!-- # table.1[6,6] <- "cannot evaluate" -->
+<!-- # table.1[6,7] <- "cannot evaluate" -->
+<!-- # table.1[6,8] <- "cannot evaluate" -->
+<!-- # table.1[6,9] <- "cannot evaluate" -->
+<!-- # table.1[6,10]<- "cannot evaluate" -->
+<!-- #-------------------------------.---------------------------------- op.1 -->
+<!-- table.1[3,5] <- round(summary(m1.e6)$coef[1,1], 2) -->
+<!-- table.1[3,6] <- round(summary(m1.e6)$coef[2,1], 2) -->
+<!-- table.1[3,7] <- round(summary(m1.e6)$coef[2,2], 2) -->
+<!-- table.1[3,8] <- round(summary(m1.e6)$coef[2,3], 2) -->
+<!-- table.1[3,9] <- round(summary(m1.e6)$coef[2,4], 2) -->
+<!-- table.1[3,10]<- round(summary(m1.e6)$coef[2,5], 5) -->
+<!-- #-------------------------------.---------------------------------- op.2 -->
+<!-- # table.1[8,5] <- "cannot evaluate" -->
+<!-- # table.1[8,6] <- "cannot evaluate" -->
+<!-- # table.1[8,7] <- "cannot evaluate" -->
+<!-- # table.1[8,8] <- "cannot evaluate" -->
+<!-- # table.1[8,9] <- "cannot evaluate" -->
+<!-- # table.1[8,10]<- "cannot evaluate" -->
+
+<!-- table.1[,11]  <- round(aov_table[,2], 2) -->
+<!-- table.1[,12]  <- round(aov_table[,3], 2) -->
+
+<!-- View(table.1) -->
+<!-- ``` -->
+
+<!-- # CHANGE THE NAME HERE: -->
+<!-- ```{r} -->
+<!-- table_tie.S.G1 <- table.1 %>% as.tibble() -->
+<!-- write.csv(table_tie.S.G1, "table_tie.S.G1.csv") -->
+<!-- ``` -->
+
+<!-- # TABLE 2: higher order polynomials -------------------------------------------- -->
+<!-- ```{r} -->
+<!-- table.2 <- matrix(NA, nrow = 6, ncol = 12)  -->
+
+<!-- colnames(table.2) <- c("age_group", -->
+<!--                         "problem_type", -->
+<!--                         "problem_size", -->
+<!--                         "model", -->
+<!--                         "VI", -->
+<!--                         "intercept estimate [log]", -->
+<!--                         "VI estimate [log]", -->
+<!--                         "SE", -->
+<!--                         "df", -->
+<!--                         "t.val", -->
+<!--                         "p.val", -->
+<!--                          "note") -->
+
+<!-- table.2[,4] <- c("lineal", "cuadratic", "cuadratic", "cubic", "cubic", "cubic") -->
+<!-- table.2[,5] <- c("Sum", "Sum", "Sum^2", "Sum", "Sum^2", "Sum^3") -->
+
+<!-- table.2[,1] <- group_name -->
+<!-- table.2[,2] <- problem_type -->
+<!-- table.2[,3] <- problem_size -->
+
+<!-- View(table.2) -->
+
+<!-- # linear -->
+<!-- table.2[1,6]  <- round(summary(m1)$coef[1,1], 2)                                # intercept estimate -->
+<!-- table.2[1,7]  <- round(summary(m1)$coef[2,1], 2)                                # VI estimate -->
+<!-- table.2[1,8]  <- round(summary(m1)$coef[2,2], 2)                                # SE -->
+<!-- table.2[1,9]  <- round(summary(m1)$coef[2,3], 2)                                # df -->
+<!-- table.2[1,10] <- round(summary(m1)$coef[2,4], 2)                                # t.val -->
+<!-- table.2[1,11] <- round(summary(m1)$coef[2,5], 5)                                # p.val -->
+<!-- # cuadratic -------------------------------------------------------- -->
+<!-- table.2[2,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate -->
+<!-- table.2[2,7]  <- round(summary(m1.sq)$coef[2,1], 2)                             # VI estimate -->
+<!-- table.2[2,8]  <- round(summary(m1.sq)$coef[2,2], 2)                             # SE -->
+<!-- table.2[2,9]  <- round(summary(m1.sq)$coef[2,3], 2)                             # df -->
+<!-- table.2[2,10] <- round(summary(m1.sq)$coef[2,4], 2)                             # t.val -->
+<!-- table.2[2,11] <- round(summary(m1.sq)$coef[2,5], 5)                             # p.val -->
+<!-- # ---------------------------------------------------------------- -->
+<!-- table.2[3,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate -->
+<!-- table.2[3,7]  <- round(summary(m1.sq)$coef[3,1], 2)                             # VI estimate -->
+<!-- table.2[3,8]  <- round(summary(m1.sq)$coef[3,2], 2)                             # SE -->
+<!-- table.2[3,9]  <- round(summary(m1.sq)$coef[3,3], 2)                             # df -->
+<!-- table.2[3,10] <- round(summary(m1.sq)$coef[3,4], 2)                             # t.val -->
+<!-- table.2[3,11] <- round(summary(m1.sq)$coef[3,5], 5)                             # p.val -->
+<!-- # cubic --------------------------------------------------------- -->
+<!-- table.2[4,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate -->
+<!-- table.2[4,7]  <- round(summary(m1.cu)$coef[2,1], 2)                             # VI estimate -->
+<!-- table.2[4,8]  <- round(summary(m1.cu)$coef[2,2], 2)                             # SE -->
+<!-- table.2[4,9]  <- round(summary(m1.cu)$coef[2,3], 2)                             # df -->
+<!-- table.2[4,10] <- round(summary(m1.cu)$coef[2,4], 2)                             # t.val -->
+<!-- table.2[4,11] <- round(summary(m1.cu)$coef[2,5], 5)                             # p.val -->
+<!-- # ---------------------------------------------------------------- -->
+<!-- table.2[5,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate -->
+<!-- table.2[5,7]  <- round(summary(m1.cu)$coef[3,1], 2)                             # VI estimate -->
+<!-- table.2[5,8]  <- round(summary(m1.cu)$coef[3,2], 2)                             # SE -->
+<!-- table.2[5,9]  <- round(summary(m1.cu)$coef[3,3], 2)                             # df -->
+<!-- table.2[5,10] <- round(summary(m1.cu)$coef[3,4], 2)                             # t.val -->
+<!-- table.2[5,11] <- round(summary(m1.cu)$coef[3,5], 5)                             # p.val -->
+<!-- # ---------------------------------------------------------------- -->
+<!-- table.2[6,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate -->
+<!-- table.2[6,7]  <- round(summary(m1.cu)$coef[4,1], 2)                             # VI estimate -->
+<!-- table.2[6,8]  <- round(summary(m1.cu)$coef[4,2], 2)                             # SE -->
+<!-- table.2[6,9]  <- round(summary(m1.cu)$coef[4,3], 2)                             # df -->
+<!-- table.2[6,10] <- round(summary(m1.cu)$coef[4,4], 2)                             # t.val -->
+<!-- table.2[6,11] <- round(summary(m1.cu)$coef[4,5], 5)                             # p.val -->
+
+<!-- View(table.2) -->
+<!-- ``` -->
+
+<!-- # CHANGE THE NAMES HERE -------------------------------------------------------- -->
+<!-- ```{r} -->
+<!-- table_tie.S.G1.poly <- table.2 %>% as.tibble -->
+<!-- write.csv(table_tie.S.G1.poly, "table_tie.S.G1.poly.csv") -->
+<!-- ``` -->
+
+
+# .
+# .
+# .
+# .
+# .
+# .
+
+# remove the objects
+```{r}
+rm(group_name, group_num, problem_size, problem_type, m1, pre.m1, m1.e1, m1.e2, m1.e3, m1.e4, m1.e5, m1.e6, m1.e7, m1.sq, m1.cu, aov_table, table.1, table.2)
+```
+
+```{r}
+# SPECIFY THE GROUP
+group_num = 0.5                                                                 # -0.5 ~ grade 1; 0.5 ~ grade 6
+
+# Grade 6 ----------------------------------------------------------------------
+m1  <- lmer(log(RT) ~ sum.f.n + (1 + sum.f.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+summary(m1)
+
+performance::check_model(m1)
+
+# predictions ------------------------------------------------------------------
+
+pre.m1 <- ggpredict(m1, terms = "sum.f.n", se = TRUE, back.transform = FALSE)
+pre.m1
+plot(pre.m1)
+
+# sum.f.n | Predicted |       95% CI
+# ----------------------------------
+#   -1.41 |      6.93 | [6.77, 7.09]
+#   -0.71 |      6.95 | [6.82, 7.07]
+#    0.00 |      6.96 | [6.85, 7.07]
+#    0.71 |      6.98 | [6.85, 7.10]
+#    1.42 |      6.99 | [6.83, 7.16]
+```
+
+
+```{r}
+## Control models:
+# square -----------------------------------------------------------------------
+# m1.sq <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + (1 + sum.f.n + I(sum.f.n^2)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# # singular
+# summary(m1.sq)
+
+m1.sq <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + (1 + sum.f.n + I(sum.f.n^2)||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# ok
+summary(m1.sq)
+
+# cubic ------------------------------------------------------------------------
+# m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2) + I(sum.f.n^3)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# # failed to converge
+# # singular
+# summary(m1.cu)
+# 
+# m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2) + I(sum.f.n^3)||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# # singular
+# summary(m1.cu)
+
+m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2)||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+summary(m1.cu)
+
+
+pre.m1.cu <- ggpredict(m1.cu, terms = "sum.f.n[all]", se = TRUE, back.transform = FALSE)
+pre.m1.cu
+plot(pre.m1.cu)
+
+# sum.f.n | Predicted |       95% CI
+# ----------------------------------
+#   -1.41 |      6.91 | [6.78, 7.05]
+#   -0.71 |      6.89 | [6.77, 7.01]
+#    0.00 |      7.02 | [6.91, 7.12]
+#    0.71 |      7.09 | [6.97, 7.21]
+#    1.42 |      6.89 | [6.76, 7.03]
+```
+
+
+```{r}
+## Alternative predictors ------------------------------------------------------
+# m1.e1 <- lmer(log(RT) ~ pre.min.n +            (1 + pre.min.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e2 <- lmer(log(RT) ~ pre.max.n +            (1 + pre.max.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+m1.e3 <- lmer(log(RT) ~ pre.product.n +        (1 + pre.product.n|subject) +        (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e4 <- lmer(log(RT) ~ pre.sum_squared.n +    (1 + pre.sum_squared.n|subject) +    (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e5 <- lmer(log(RT) ~ pre.sup_op_squared.n + (1 + pre.sup_op_squared.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+m1.e6 <- lmer(log(RT) ~ op.1.n +               (1 + op.1.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE) #singular
+# m1.e7 <- lmer(log(RT) ~ op.2.n +               (1 + op.2.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+
+aov_table <- anova(m1,
+                   # m1.e1, 
+                   # m1.e2,
+                   m1.e3, 
+                   # m1.e4, 
+                   # m1.e5,
+                   m1.e6
+                   # m1.e7
+                   )
+```
+# Change the names for each table ----------------------------------------------
+```{r}
+group_name = "grade 6"                                                          # grade 1 or grade 6
+problem_type = "tie"                                                        # non-tie or tie
+problem_size = "small"                                                     # very small, medium small, large, small
+```
+
+# TABLE 1: Models and control models -------------------------------------------
+```{r}
+table.1 <- matrix(NA, nrow = 3, ncol = 12)
+colnames(table.1) <- c("age_group",
+                        "problem_type",
+                        "problem_size",
+                        "VI",
+                        "intercept estimate [log]",
+                        "VI estimate [log]",
+                        "SE",
+                        "df",
+                        "t.val",
+                        "p.val",
+                        "AIC",
+                        "BIC")
+
+table.1[,4] <- c("Sum", 
+                 # "Min(op.1|op.2)", 
+                 # "Max(op.1|op.2)", 
+                 "product/sum^2/op.1^2+op.2^2", 
+                 # "sum_sq ~ (op.1+op.2)^2", 
+                 # "sum_sq_op ~ op.1^2+op.2^2", 
+                 "op.1/op.2/Min/Max" 
+                 # "op.2"
+                 )
+
+table.1[,1] <- group_name
+table.1[,2] <- problem_type
+table.1[,3] <- problem_size
+
+View(table.1)
+
+table.1[1,5] <- round(summary(m1)$coef[1,1], 2)
+table.1[1,6] <- round(summary(m1)$coef[2,1], 2)
+table.1[1,7] <- round(summary(m1)$coef[2,2], 2)
+table.1[1,8] <- round(summary(m1)$coef[2,3], 2)
+table.1[1,9] <- round(summary(m1)$coef[2,4], 2)
+table.1[1,10]<- round(summary(m1)$coef[2,5], 5)
+#------------------------------------------------------------------------------ Min
+# table.1[2,5] <- "cannot evaluate"
+# table.1[2,6] <- "cannot evaluate"
+# table.1[2,7] <- "cannot evaluate"
+# table.1[2,8] <- "cannot evaluate"
+# table.1[2,9] <- "cannot evaluate"
+# table.1[2,10]<- "cannot evaluate"
+# #-------------------------------.---------------------------------- Max
+# table.1[3,5] <- "cannot evaluate"
+# table.1[3,6] <- "cannot evaluate"
+# table.1[3,7] <- "cannot evaluate"
+# table.1[3,8] <- "cannot evaluate"
+# table.1[3,9] <- "cannot evaluate"
+# table.1[3,10]<- "cannot evaluate"
+#-------------------------------.---------------------------------- product
+table.1[2,5] <- round(summary(m1.e3)$coef[1,1], 2)
+table.1[2,6] <- round(summary(m1.e3)$coef[2,1], 2)
+table.1[2,7] <- round(summary(m1.e3)$coef[2,2], 2)
+table.1[2,8] <- round(summary(m1.e3)$coef[2,3], 2)
+table.1[2,9] <- round(summary(m1.e3)$coef[2,4], 2)
+table.1[2,10]<- round(summary(m1.e3)$coef[2,5], 5)
+#-------------------------------.---------------------------------- sum_sq
+# table.1[5,5] <- "cannot evaluate"
+# table.1[5,6] <- "cannot evaluate"
+# table.1[5,7] <- "cannot evaluate"
+# table.1[5,8] <- "cannot evaluate"
+# table.1[5,9] <- "cannot evaluate"
+# table.1[5,10]<- "cannot evaluate"
+# #-------------------------------.---------------------------------- sum_sq_op
+# table.1[6,5] <- "cannot evaluate"
+# table.1[6,6] <- "cannot evaluate"
+# table.1[6,7] <- "cannot evaluate"
+# table.1[6,8] <- "cannot evaluate"
+# table.1[6,9] <- "cannot evaluate"
+# table.1[6,10]<- "cannot evaluate"
+#-------------------------------.---------------------------------- op.1
+table.1[3,5] <- round(summary(m1.e6)$coef[1,1], 2)
+table.1[3,6] <- round(summary(m1.e6)$coef[2,1], 2)
+table.1[3,7] <- round(summary(m1.e6)$coef[2,2], 2)
+table.1[3,8] <- round(summary(m1.e6)$coef[2,3], 2)
+table.1[3,9] <- round(summary(m1.e6)$coef[2,4], 2)
+table.1[3,10]<- round(summary(m1.e6)$coef[2,5], 5)
+#-------------------------------.---------------------------------- op.2
+# table.1[8,5] <- "cannot evaluate"
+# table.1[8,6] <- "cannot evaluate"
+# table.1[8,7] <- "cannot evaluate"
+# table.1[8,8] <- "cannot evaluate"
+# table.1[8,9] <- "cannot evaluate"
+# table.1[8,10]<- "cannot evaluate"
+
+table.1[,11]  <- round(aov_table[,2], 2)
+table.1[,12]  <- round(aov_table[,3], 2)
+
+View(table.1)
+```
+
+# CHANGE THE NAME HERE:
+```{r}
+table_tie.S.G6 <- table.1 %>% as.tibble()
+write.csv(table_tie.S.G6, "table_tie.S.G6.csv")
+```
+
+# TABLE 2: higher order polynomials --------------------------------------------
+```{r}
+table.2 <- matrix(NA, nrow = 6, ncol = 12) 
+
+colnames(table.2) <- c("age_group",
+                        "problem_type",
+                        "problem_size",
+                        "model",
+                        "VI",
+                        "intercept estimate [log]",
+                        "VI estimate [log]",
+                        "SE",
+                        "df",
+                        "t.val",
+                        "p.val",
+                         "note")
+
+table.2[,4] <- c("lineal", "cuadratic", "cuadratic", "cubic", "cubic", "cubic")
+table.2[,5] <- c("Sum", "Sum", "Sum^2", "Sum", "Sum^2", "Sum^3")
+
+table.2[,1] <- group_name
+table.2[,2] <- problem_type
+table.2[,3] <- problem_size
+
+View(table.2)
+
+# linear
+table.2[1,6]  <- round(summary(m1)$coef[1,1], 2)                                # intercept estimate
+table.2[1,7]  <- round(summary(m1)$coef[2,1], 2)                                # VI estimate
+table.2[1,8]  <- round(summary(m1)$coef[2,2], 2)                                # SE
+table.2[1,9]  <- round(summary(m1)$coef[2,3], 2)                                # df
+table.2[1,10] <- round(summary(m1)$coef[2,4], 2)                                # t.val
+table.2[1,11] <- round(summary(m1)$coef[2,5], 5)                                # p.val
+# cuadratic --------------------------------------------------------
+table.2[2,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate
+table.2[2,7]  <- round(summary(m1.sq)$coef[2,1], 2)                             # VI estimate
+table.2[2,8]  <- round(summary(m1.sq)$coef[2,2], 2)                             # SE
+table.2[2,9]  <- round(summary(m1.sq)$coef[2,3], 2)                             # df
+table.2[2,10] <- round(summary(m1.sq)$coef[2,4], 2)                             # t.val
+table.2[2,11] <- round(summary(m1.sq)$coef[2,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[3,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate
+table.2[3,7]  <- round(summary(m1.sq)$coef[3,1], 2)                             # VI estimate
+table.2[3,8]  <- round(summary(m1.sq)$coef[3,2], 2)                             # SE
+table.2[3,9]  <- round(summary(m1.sq)$coef[3,3], 2)                             # df
+table.2[3,10] <- round(summary(m1.sq)$coef[3,4], 2)                             # t.val
+table.2[3,11] <- round(summary(m1.sq)$coef[3,5], 5)                             # p.val
+# cubic ---------------------------------------------------------
+table.2[4,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[4,7]  <- round(summary(m1.cu)$coef[2,1], 2)                             # VI estimate
+table.2[4,8]  <- round(summary(m1.cu)$coef[2,2], 2)                             # SE
+table.2[4,9]  <- round(summary(m1.cu)$coef[2,3], 2)                             # df
+table.2[4,10] <- round(summary(m1.cu)$coef[2,4], 2)                             # t.val
+table.2[4,11] <- round(summary(m1.cu)$coef[2,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[5,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[5,7]  <- round(summary(m1.cu)$coef[3,1], 2)                             # VI estimate
+table.2[5,8]  <- round(summary(m1.cu)$coef[3,2], 2)                             # SE
+table.2[5,9]  <- round(summary(m1.cu)$coef[3,3], 2)                             # df
+table.2[5,10] <- round(summary(m1.cu)$coef[3,4], 2)                             # t.val
+table.2[5,11] <- round(summary(m1.cu)$coef[3,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[6,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[6,7]  <- round(summary(m1.cu)$coef[4,1], 2)                             # VI estimate
+table.2[6,8]  <- round(summary(m1.cu)$coef[4,2], 2)                             # SE
+table.2[6,9]  <- round(summary(m1.cu)$coef[4,3], 2)                             # df
+table.2[6,10] <- round(summary(m1.cu)$coef[4,4], 2)                             # t.val
+table.2[6,11] <- round(summary(m1.cu)$coef[4,5], 5)                             # p.val
+
+View(table.2)
+```
+
+# CHANGE THE NAMES HERE --------------------------------------------------------
+```{r}
+table_tie.S.G6.poly <- table.2 %>% as.tibble
+write.csv(table_tie.S.G6.poly, "table_tie.S.G6.poly.csv")
+```
+
+# remove the objects
+```{r}
+rm(group_name, group_num, problem_size, problem_type, m1, pre.m1, m1.e1, m1.e2, m1.e3, m1.e4, m1.e5, m1.e6, m1.e7, m1.sq, m1.cu, aov_table, table.1, table.2)
+```
+
+# Large ties -------------------------------------------------------------------
+```{r}
+d <- d.outliers_without %>% 
+  filter(tie_large == 1)
+
+d$sum.f.n <- scale(as.numeric(d$sum.f))
+hist(d$sum.f.n, breaks = 20)
+
+xtabs(~ sum.f + group.cod, data = d)
+
+# Alternative predictors -------------------------------------------------------
+# min and max es lo mismo que op.1 y op.2 => evaluar solo op.1
+# product, sum^2 y op.1^2+op.2^2 es lo mismo también
+
+# d$pre.min.n            <- scale(as.numeric(d$pre.min))             # min
+# d$pre.max.n            <- scale(as.numeric(d$pre.max))             # max
+d$pre.product.n        <- scale(as.numeric(d$pre.product))         # product (op.1*op.2)
+# d$pre.sum_squared.n    <- scale(as.numeric(d$pre.sum_squared))     # sum_squared ((op.1 + op.2)^2)
+# d$pre.sup_op_squared.n <- scale(as.numeric(d$pre.sum_op_squared))  # sum of squared operands (op.1^2 + op.2^2)
+d$op.1.n               <- scale(as.numeric(d$op.1))                # op.1
+# d$op.2.n               <- scale(as.numeric(d$op.2))                # op.2
+
+# hist(d$pre.min.n, breaks = 10)
+# hist(d$pre.max.n, breaks = 10)
+hist(d$pre.product.n , breaks = 10)
+# hist(d$pre.sum_squared.n, breaks = 20)
+# hist(d$pre.sup_op_squared.n, breaks = 20)
+hist(d$op.1.n, breaks = 10)
+# hist(d$op.2.n, breaks = 10)
+```
+
+```{r}
+# SPECIFY THE GROUP
+group_num = -0.5                                                                 # -0.5 ~ grade 1; 0.5 ~ grade 6
+
+# Grade 1 ----------------------------------------------------------------------
+m1 <- lmer(log(RT) ~ sum.f.n + (1 + sum.f.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+summary(m1)
+# singular
+
+performance::check_model(m1)
+
+# predictions ------------------------------------------------------------------
+
+pre.m1 <- ggpredict(m1, terms = "sum.f.n", se = TRUE, back.transform = FALSE)
+pre.m1
+plot(pre.m1)
+
+# sum.f.n | Predicted |       95% CI
+# ----------------------------------
+#   -1.28 |      8.91 | [8.58, 9.25]
+#   -0.39 |      8.96 | [8.72, 9.19]
+#    0.50 |      9.00 | [8.77, 9.24]
+#    1.39 |      9.05 | [8.71, 9.38]
+```
+
+
+```{r}
+## Control models:
+# square -----------------------------------------------------------------------
+# m1.sq <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + (1 + sum.f.n + I(sum.f.n^2)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# # singular por el item
+# summary(m1.sq)
+
+d.bysubj <- d %>% filter(group.cod == -0.5) %>% group_by(subject, sum.f.n) %>% summarize(RT = mean(log(RT)))
+
+m1.sq <- lmer(RT ~ sum.f.n + I(sum.f.n^2) + (1 + sum.f.n + I(sum.f.n^2)|subject), data = d.bysubj, REML = FALSE)
+# singular por el item
+summary(m1.sq)
+
+pre.m1.sq <- ggpredict(m1.sq, terms = "sum.f.n", se = TRUE, back.transform = FALSE)
+pre.m1.sq
+plot(pre.m1.sq)
+
+# sum.f.n | Predicted |       95% CI
+# ----------------------------------
+#   -1.28 |      8.75 | [8.51, 8.99]
+#   -0.39 |      9.13 | [9.00, 9.26]
+#    0.50 |      9.20 | [9.09, 9.31]
+#    1.39 |      8.96 | [8.72, 9.21]
+```
+
+
+
+ES SINGULAR!!!
+
+
+
+```{r}
+# cubic ------------------------------------------------------------------------
+m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2) + I(sum.f.n^3)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# singular
+summary(m1.cu)
+
+## Alternative predictors ------------------------------------------------------
+# m1.e1 <- lmer(log(RT) ~ pre.min.n +            (1 + pre.min.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e2 <- lmer(log(RT) ~ pre.max.n +            (1 + pre.max.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+m1.e3 <- lmer(log(RT) ~ pre.product.n +        (1 + pre.product.n|subject) +        (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e4 <- lmer(log(RT) ~ pre.sum_squared.n +    (1 + pre.sum_squared.n|subject) +    (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e5 <- lmer(log(RT) ~ pre.sup_op_squared.n + (1 + pre.sup_op_squared.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+m1.e6 <- lmer(log(RT) ~ op.1.n +               (1 + op.1.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE) #singular
+# m1.e7 <- lmer(log(RT) ~ op.2.n +               (1 + op.2.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+
+aov_table <- anova(m1,
+                   # m1.e1, 
+                   # m1.e2,
+                   m1.e3, 
+                   # m1.e4, 
+                   # m1.e5,
+                   m1.e6
+                   # m1.e7
+                   )
+```
+
+# Change the names for each table ----------------------------------------------
+```{r}
+group_name = "grade 1"                                                          # grade 1 or grade 6
+problem_type = "tie"                                                            # non-tie or tie
+problem_size = "large"                                                          # very small, medium small, large, small
+```
+
+# TABLE 1: Models and control models -------------------------------------------
+```{r}
+table.1 <- matrix(NA, nrow = 3, ncol = 12)
+colnames(table.1) <- c("age_group",
+                        "problem_type",
+                        "problem_size",
+                        "VI",
+                        "intercept estimate [log]",
+                        "VI estimate [log]",
+                        "SE",
+                        "df",
+                        "t.val",
+                        "p.val",
+                        "AIC",
+                        "BIC")
+
+table.1[,4] <- c("Sum", 
+                 # "Min(op.1|op.2)", 
+                 # "Max(op.1|op.2)", 
+                 "product/sum^2/op.1^2+op.2^2", 
+                 # "sum_sq ~ (op.1+op.2)^2", 
+                 # "sum_sq_op ~ op.1^2+op.2^2", 
+                 "op.1/op.2/Min/Max" 
+                 # "op.2"
+                 )
+
+table.1[,1] <- group_name
+table.1[,2] <- problem_type
+table.1[,3] <- problem_size
+
+View(table.1)
+
+table.1[1,5] <- round(summary(m1)$coef[1,1], 2)
+table.1[1,6] <- round(summary(m1)$coef[2,1], 2)
+table.1[1,7] <- round(summary(m1)$coef[2,2], 2)
+table.1[1,8] <- round(summary(m1)$coef[2,3], 2)
+table.1[1,9] <- round(summary(m1)$coef[2,4], 2)
+table.1[1,10]<- round(summary(m1)$coef[2,5], 5)
+#------------------------------------------------------------------------------ Min
+# table.1[2,5] <- "cannot evaluate"
+# table.1[2,6] <- "cannot evaluate"
+# table.1[2,7] <- "cannot evaluate"
+# table.1[2,8] <- "cannot evaluate"
+# table.1[2,9] <- "cannot evaluate"
+# table.1[2,10]<- "cannot evaluate"
+# #-------------------------------.---------------------------------- Max
+# table.1[3,5] <- "cannot evaluate"
+# table.1[3,6] <- "cannot evaluate"
+# table.1[3,7] <- "cannot evaluate"
+# table.1[3,8] <- "cannot evaluate"
+# table.1[3,9] <- "cannot evaluate"
+# table.1[3,10]<- "cannot evaluate"
+#-------------------------------.---------------------------------- product
+table.1[2,5] <- round(summary(m1.e3)$coef[1,1], 2)
+table.1[2,6] <- round(summary(m1.e3)$coef[2,1], 2)
+table.1[2,7] <- round(summary(m1.e3)$coef[2,2], 2)
+table.1[2,8] <- round(summary(m1.e3)$coef[2,3], 2)
+table.1[2,9] <- round(summary(m1.e3)$coef[2,4], 2)
+table.1[2,10]<- round(summary(m1.e3)$coef[2,5], 5)
+#-------------------------------.---------------------------------- sum_sq
+# table.1[5,5] <- "cannot evaluate"
+# table.1[5,6] <- "cannot evaluate"
+# table.1[5,7] <- "cannot evaluate"
+# table.1[5,8] <- "cannot evaluate"
+# table.1[5,9] <- "cannot evaluate"
+# table.1[5,10]<- "cannot evaluate"
+# #-------------------------------.---------------------------------- sum_sq_op
+# table.1[6,5] <- "cannot evaluate"
+# table.1[6,6] <- "cannot evaluate"
+# table.1[6,7] <- "cannot evaluate"
+# table.1[6,8] <- "cannot evaluate"
+# table.1[6,9] <- "cannot evaluate"
+# table.1[6,10]<- "cannot evaluate"
+#-------------------------------.---------------------------------- op.1
+table.1[3,5] <- round(summary(m1.e6)$coef[1,1], 2)
+table.1[3,6] <- round(summary(m1.e6)$coef[2,1], 2)
+table.1[3,7] <- round(summary(m1.e6)$coef[2,2], 2)
+table.1[3,8] <- round(summary(m1.e6)$coef[2,3], 2)
+table.1[3,9] <- round(summary(m1.e6)$coef[2,4], 2)
+table.1[3,10]<- round(summary(m1.e6)$coef[2,5], 5)
+#-------------------------------.---------------------------------- op.2
+# table.1[8,5] <- "cannot evaluate"
+# table.1[8,6] <- "cannot evaluate"
+# table.1[8,7] <- "cannot evaluate"
+# table.1[8,8] <- "cannot evaluate"
+# table.1[8,9] <- "cannot evaluate"
+# table.1[8,10]<- "cannot evaluate"
+
+table.1[,11]  <- round(aov_table[,2], 2)
+table.1[,12]  <- round(aov_table[,3], 2)
+
+View(table.1)
+```
+
+# CHANGE THE NAME HERE:
+```{r}
+table_tie.L.G1 <- table.1 %>% as.tibble()
+write.csv(table_tie.L.G1, "table_tie.L.G1.csv")
+```
+
+# TABLE 2: higher order polynomials --------------------------------------------
+```{r}
+table.2 <- matrix(NA, nrow = 6, ncol = 12) 
+
+colnames(table.2) <- c("age_group",
+                        "problem_type",
+                        "problem_size",
+                        "model",
+                        "VI",
+                        "intercept estimate [log]",
+                        "VI estimate [log]",
+                        "SE",
+                        "df",
+                        "t.val",
+                        "p.val",
+                         "note")
+
+table.2[,4] <- c("lineal", "cuadratic", "cuadratic", "cubic", "cubic", "cubic")
+table.2[,5] <- c("Sum", "Sum", "Sum^2", "Sum", "Sum^2", "Sum^3")
+
+table.2[,1] <- group_name
+table.2[,2] <- problem_type
+table.2[,3] <- problem_size
+
+View(table.2)
+
+# linear
+table.2[1,6]  <- round(summary(m1)$coef[1,1], 2)                                # intercept estimate
+table.2[1,7]  <- round(summary(m1)$coef[2,1], 2)                                # VI estimate
+table.2[1,8]  <- round(summary(m1)$coef[2,2], 2)                                # SE
+table.2[1,9]  <- round(summary(m1)$coef[2,3], 2)                                # df
+table.2[1,10] <- round(summary(m1)$coef[2,4], 2)                                # t.val
+table.2[1,11] <- round(summary(m1)$coef[2,5], 5)                                # p.val
+# cuadratic --------------------------------------------------------
+table.2[2,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate
+table.2[2,7]  <- round(summary(m1.sq)$coef[2,1], 2)                             # VI estimate
+table.2[2,8]  <- round(summary(m1.sq)$coef[2,2], 2)                             # SE
+table.2[2,9]  <- round(summary(m1.sq)$coef[2,3], 2)                             # df
+table.2[2,10] <- round(summary(m1.sq)$coef[2,4], 2)                             # t.val
+table.2[2,11] <- round(summary(m1.sq)$coef[2,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[3,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate
+table.2[3,7]  <- round(summary(m1.sq)$coef[3,1], 2)                             # VI estimate
+table.2[3,8]  <- round(summary(m1.sq)$coef[3,2], 2)                             # SE
+table.2[3,9]  <- round(summary(m1.sq)$coef[3,3], 2)                             # df
+table.2[3,10] <- round(summary(m1.sq)$coef[3,4], 2)                             # t.val
+table.2[3,11] <- round(summary(m1.sq)$coef[3,5], 5)                             # p.val
+# cubic ---------------------------------------------------------
+table.2[4,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[4,7]  <- round(summary(m1.cu)$coef[2,1], 2)                             # VI estimate
+table.2[4,8]  <- round(summary(m1.cu)$coef[2,2], 2)                             # SE
+table.2[4,9]  <- round(summary(m1.cu)$coef[2,3], 2)                             # df
+table.2[4,10] <- round(summary(m1.cu)$coef[2,4], 2)                             # t.val
+table.2[4,11] <- round(summary(m1.cu)$coef[2,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[5,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[5,7]  <- round(summary(m1.cu)$coef[3,1], 2)                             # VI estimate
+table.2[5,8]  <- round(summary(m1.cu)$coef[3,2], 2)                             # SE
+table.2[5,9]  <- round(summary(m1.cu)$coef[3,3], 2)                             # df
+table.2[5,10] <- round(summary(m1.cu)$coef[3,4], 2)                             # t.val
+table.2[5,11] <- round(summary(m1.cu)$coef[3,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[6,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[6,7]  <- round(summary(m1.cu)$coef[4,1], 2)                             # VI estimate
+table.2[6,8]  <- round(summary(m1.cu)$coef[4,2], 2)                             # SE
+table.2[6,9]  <- round(summary(m1.cu)$coef[4,3], 2)                             # df
+table.2[6,10] <- round(summary(m1.cu)$coef[4,4], 2)                             # t.val
+table.2[6,11] <- round(summary(m1.cu)$coef[4,5], 5)                             # p.val
+
+View(table.2)
+```
+
+# CHANGE THE NAMES HERE --------------------------------------------------------
+```{r}
+table_tie.L.G1.poly <- table.2 %>% as.tibble
+write.csv(table_tie.L.G1.poly, "table_tie.L.G1.poly.csv")
+```
+
+# remove the objects
+```{r}
+rm(group_name, group_num, problem_size, problem_type, m1, pre.m1, m1.e1, m1.e2, m1.e3, m1.e4, m1.e5, m1.e6, m1.e7, m1.sq, m1.cu, aov_table, table.1, table.2)
+```
+
+```{r}
+# SPECIFY THE GROUP
+group_num = 0.5                                                                 # -0.5 ~ grade 1; 0.5 ~ grade 6
+
+# Grade 6 ----------------------------------------------------------------------
+m1  <- lmer(log(RT) ~ sum.f.n + (1 + sum.f.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+summary(m1)
+
+performance::check_model(m1)
+
+# predictions ------------------------------------------------------------------
+
+pre.m1 <- ggpredict(m1, terms = "sum.f.n", se = TRUE, back.transform = FALSE)
+pre.m1
+plot(pre.m1)
+
+# sum.f.n | Predicted |       95% CI
+# ----------------------------------
+#   -1.28 |      7.27 | [7.11, 7.43]
+#   -0.39 |      7.29 | [7.14, 7.44]
+#    0.50 |      7.30 | [7.15, 7.45]
+#    1.39 |      7.32 | [7.16, 7.47]
+```
+
+
+```{r}
+## Control models:
+# square -----------------------------------------------------------------------
+m1.sq <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + (1 + sum.f.n + I(sum.f.n^2)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# singular because of items
+summary(m1.sq)
+```
+
+
+
+
+SINGULAR: CORREGIR
+
+
+
+
+
+```{r}
+# cubic ------------------------------------------------------------------------
+m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2) + I(sum.f.n^3)|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# singular
+summary(m1.cu)
+
+m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n + I(sum.f.n^2) + I(sum.f.n^3)||subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# singular
+summary(m1.cu)
+
+m1.cu <- lmer(log(RT) ~ sum.f.n + I(sum.f.n^2) + I(sum.f.n^3) + (1 + sum.f.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+summary(m1.cu)
+# still singular, but cubic term not significant
+
+## Alternative predictors ------------------------------------------------------
+# m1.e1 <- lmer(log(RT) ~ pre.min.n +            (1 + pre.min.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e2 <- lmer(log(RT) ~ pre.max.n +            (1 + pre.max.n|subject) +            (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+m1.e3 <- lmer(log(RT) ~ pre.product.n +        (1 + pre.product.n|subject) +        (1|item), data = filter(d, group.cod == group_num), REML = FALSE) #singular
+# m1.e4 <- lmer(log(RT) ~ pre.sum_squared.n +    (1 + pre.sum_squared.n|subject) +    (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+# m1.e5 <- lmer(log(RT) ~ pre.sup_op_squared.n + (1 + pre.sup_op_squared.n|subject) + (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+m1.e6 <- lmer(log(RT) ~ op.1.n +               (1 + op.1.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE) 
+# m1.e7 <- lmer(log(RT) ~ op.2.n +               (1 + op.2.n|subject) +               (1|item), data = filter(d, group.cod == group_num), REML = FALSE)
+
+aov_table <- anova(m1,
+                   # m1.e1, 
+                   # m1.e2,
+                   m1.e3, 
+                   # m1.e4, 
+                   # m1.e5,
+                   m1.e6
+                   # m1.e7
+                   )
+```
+
+# Change the names for each table ----------------------------------------------
+```{r}
+group_name = "grade 6"                                                          # grade 1 or grade 6
+problem_type = "tie"                                                            # non-tie or tie
+problem_size = "large"                                                          # very small, medium small, large, small
+```
+
+# TABLE 1: Models and control models -------------------------------------------
+```{r}
+table.1 <- matrix(NA, nrow = 3, ncol = 12)
+colnames(table.1) <- c("age_group",
+                        "problem_type",
+                        "problem_size",
+                        "VI",
+                        "intercept estimate [log]",
+                        "VI estimate [log]",
+                        "SE",
+                        "df",
+                        "t.val",
+                        "p.val",
+                        "AIC",
+                        "BIC")
+
+table.1[,4] <- c("Sum", 
+                 # "Min(op.1|op.2)", 
+                 # "Max(op.1|op.2)", 
+                 "product/sum^2/op.1^2+op.2^2", 
+                 # "sum_sq ~ (op.1+op.2)^2", 
+                 # "sum_sq_op ~ op.1^2+op.2^2", 
+                 "op.1/op.2/Min/Max" 
+                 # "op.2"
+                 )
+
+table.1[,1] <- group_name
+table.1[,2] <- problem_type
+table.1[,3] <- problem_size
+
+View(table.1)
+
+table.1[1,5] <- round(summary(m1)$coef[1,1], 2)
+table.1[1,6] <- round(summary(m1)$coef[2,1], 2)
+table.1[1,7] <- round(summary(m1)$coef[2,2], 2)
+table.1[1,8] <- round(summary(m1)$coef[2,3], 2)
+table.1[1,9] <- round(summary(m1)$coef[2,4], 2)
+table.1[1,10]<- round(summary(m1)$coef[2,5], 5)
+#------------------------------------------------------------------------------ Min
+# table.1[2,5] <- "cannot evaluate"
+# table.1[2,6] <- "cannot evaluate"
+# table.1[2,7] <- "cannot evaluate"
+# table.1[2,8] <- "cannot evaluate"
+# table.1[2,9] <- "cannot evaluate"
+# table.1[2,10]<- "cannot evaluate"
+# #-------------------------------.---------------------------------- Max
+# table.1[3,5] <- "cannot evaluate"
+# table.1[3,6] <- "cannot evaluate"
+# table.1[3,7] <- "cannot evaluate"
+# table.1[3,8] <- "cannot evaluate"
+# table.1[3,9] <- "cannot evaluate"
+# table.1[3,10]<- "cannot evaluate"
+#-------------------------------.---------------------------------- product
+table.1[2,5] <- round(summary(m1.e3)$coef[1,1], 2)
+table.1[2,6] <- round(summary(m1.e3)$coef[2,1], 2)
+table.1[2,7] <- round(summary(m1.e3)$coef[2,2], 2)
+table.1[2,8] <- round(summary(m1.e3)$coef[2,3], 2)
+table.1[2,9] <- round(summary(m1.e3)$coef[2,4], 2)
+table.1[2,10]<- round(summary(m1.e3)$coef[2,5], 5)
+#-------------------------------.---------------------------------- sum_sq
+# table.1[5,5] <- "cannot evaluate"
+# table.1[5,6] <- "cannot evaluate"
+# table.1[5,7] <- "cannot evaluate"
+# table.1[5,8] <- "cannot evaluate"
+# table.1[5,9] <- "cannot evaluate"
+# table.1[5,10]<- "cannot evaluate"
+# #-------------------------------.---------------------------------- sum_sq_op
+# table.1[6,5] <- "cannot evaluate"
+# table.1[6,6] <- "cannot evaluate"
+# table.1[6,7] <- "cannot evaluate"
+# table.1[6,8] <- "cannot evaluate"
+# table.1[6,9] <- "cannot evaluate"
+# table.1[6,10]<- "cannot evaluate"
+#-------------------------------.---------------------------------- op.1
+table.1[3,5] <- round(summary(m1.e6)$coef[1,1], 2)
+table.1[3,6] <- round(summary(m1.e6)$coef[2,1], 2)
+table.1[3,7] <- round(summary(m1.e6)$coef[2,2], 2)
+table.1[3,8] <- round(summary(m1.e6)$coef[2,3], 2)
+table.1[3,9] <- round(summary(m1.e6)$coef[2,4], 2)
+table.1[3,10]<- round(summary(m1.e6)$coef[2,5], 5)
+#-------------------------------.---------------------------------- op.2
+# table.1[8,5] <- "cannot evaluate"
+# table.1[8,6] <- "cannot evaluate"
+# table.1[8,7] <- "cannot evaluate"
+# table.1[8,8] <- "cannot evaluate"
+# table.1[8,9] <- "cannot evaluate"
+# table.1[8,10]<- "cannot evaluate"
+
+table.1[,11]  <- round(aov_table[,2], 2)
+table.1[,12]  <- round(aov_table[,3], 2)
+
+View(table.1)
+```
+
+# CHANGE THE NAME HERE:
+```{r}
+table_tie.L.G6 <- table.1 %>% as.tibble()
+write.csv(table_tie.L.G6, "table_tie.L.G6.csv")
+```
+
+# TABLE 2: higher order polynomials --------------------------------------------
+```{r}
+table.2 <- matrix(NA, nrow = 6, ncol = 12) 
+
+colnames(table.2) <- c("age_group",
+                        "problem_type",
+                        "problem_size",
+                        "model",
+                        "VI",
+                        "intercept estimate [log]",
+                        "VI estimate [log]",
+                        "SE",
+                        "df",
+                        "t.val",
+                        "p.val",
+                         "note")
+
+table.2[,4] <- c("lineal", "cuadratic", "cuadratic", "cubic", "cubic", "cubic")
+table.2[,5] <- c("Sum", "Sum", "Sum^2", "Sum", "Sum^2", "Sum^3")
+
+table.2[,1] <- group_name
+table.2[,2] <- problem_type
+table.2[,3] <- problem_size
+
+View(table.2)
+
+# linear
+table.2[1,6]  <- round(summary(m1)$coef[1,1], 2)                                # intercept estimate
+table.2[1,7]  <- round(summary(m1)$coef[2,1], 2)                                # VI estimate
+table.2[1,8]  <- round(summary(m1)$coef[2,2], 2)                                # SE
+table.2[1,9]  <- round(summary(m1)$coef[2,3], 2)                                # df
+table.2[1,10] <- round(summary(m1)$coef[2,4], 2)                                # t.val
+table.2[1,11] <- round(summary(m1)$coef[2,5], 5)                                # p.val
+# cuadratic --------------------------------------------------------
+table.2[2,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate
+table.2[2,7]  <- round(summary(m1.sq)$coef[2,1], 2)                             # VI estimate
+table.2[2,8]  <- round(summary(m1.sq)$coef[2,2], 2)                             # SE
+table.2[2,9]  <- round(summary(m1.sq)$coef[2,3], 2)                             # df
+table.2[2,10] <- round(summary(m1.sq)$coef[2,4], 2)                             # t.val
+table.2[2,11] <- round(summary(m1.sq)$coef[2,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[3,6]  <- round(summary(m1.sq)$coef[1,1], 2)                             # intercept estimate
+table.2[3,7]  <- round(summary(m1.sq)$coef[3,1], 2)                             # VI estimate
+table.2[3,8]  <- round(summary(m1.sq)$coef[3,2], 2)                             # SE
+table.2[3,9]  <- round(summary(m1.sq)$coef[3,3], 2)                             # df
+table.2[3,10] <- round(summary(m1.sq)$coef[3,4], 2)                             # t.val
+table.2[3,11] <- round(summary(m1.sq)$coef[3,5], 5)                             # p.val
+# cubic ---------------------------------------------------------
+table.2[4,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[4,7]  <- round(summary(m1.cu)$coef[2,1], 2)                             # VI estimate
+table.2[4,8]  <- round(summary(m1.cu)$coef[2,2], 2)                             # SE
+table.2[4,9]  <- round(summary(m1.cu)$coef[2,3], 2)                             # df
+table.2[4,10] <- round(summary(m1.cu)$coef[2,4], 2)                             # t.val
+table.2[4,11] <- round(summary(m1.cu)$coef[2,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[5,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[5,7]  <- round(summary(m1.cu)$coef[3,1], 2)                             # VI estimate
+table.2[5,8]  <- round(summary(m1.cu)$coef[3,2], 2)                             # SE
+table.2[5,9]  <- round(summary(m1.cu)$coef[3,3], 2)                             # df
+table.2[5,10] <- round(summary(m1.cu)$coef[3,4], 2)                             # t.val
+table.2[5,11] <- round(summary(m1.cu)$coef[3,5], 5)                             # p.val
+# ----------------------------------------------------------------
+table.2[6,6]  <- round(summary(m1.cu)$coef[1,1], 2)                             # intercept estimate
+table.2[6,7]  <- round(summary(m1.cu)$coef[4,1], 2)                             # VI estimate
+table.2[6,8]  <- round(summary(m1.cu)$coef[4,2], 2)                             # SE
+table.2[6,9]  <- round(summary(m1.cu)$coef[4,3], 2)                             # df
+table.2[6,10] <- round(summary(m1.cu)$coef[4,4], 2)                             # t.val
+table.2[6,11] <- round(summary(m1.cu)$coef[4,5], 5)                             # p.val
+
+View(table.2)
+```
+
+# CHANGE THE NAMES HERE --------------------------------------------------------
+```{r}
+table_tie.L.G6.poly <- table.2 %>% as.tibble
+write.csv(table_tie.L.G6.poly, "table_tie.L.G6.poly.csv")
+```
+
+# remove the objects
+```{r}
+rm(group_name, group_num, problem_size, problem_type, m1, pre.m1, m1.e1, m1.e2, m1.e3, m1.e4, m1.e5, m1.e6, m1.e7, m1.sq, m1.cu, aov_table, table.1, table.2)
+```
+
+# TODO: 
